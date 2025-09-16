@@ -18,41 +18,52 @@ import json
 import logging
 from datetime import datetime
 
-def process_slate_data(json_data, api_key, scene_numbers=None):
-    """
-    使用 DeepSeek API 处理场记表数据
-    :param json_data: OCR识别出的JSON数据
-    :param api_key: DeepSeek API密钥
-    :param scene_numbers: 允许的场号列表，如 ["212b", "275", "27b", "210c", "28"]
-    :return: 处理后的结果
-    """
+
+class DeepSeekProcessor:
+    """DeepSeek API处理器类"""
     
-    # 默认场号列表
-    if scene_numbers is None:
-        scene_numbers = []
+    def __init__(self, base_url="https://api.deepseek.com"):
+        """
+        初始化DeepSeek处理器
+        :param base_url: DeepSeek API基础URL
+        """
+        self.base_url = base_url
     
-    # 将场号列表转换为字符串，用于提示词
-    scene_numbers_str = "、".join(scene_numbers)
-    
-    # 设置日志
-    # 清除现有的处理器
-    for handler in logging.root.handlers[:]:
-        logging.root.removeHandler(handler)
-    
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(levelname)s - %(message)s',
-        handlers=[
-            logging.FileHandler('deepseek_api.log', encoding='utf-8', mode='a'),
-            logging.StreamHandler()
-        ],
-        force=True
-    )
-    
-    client = OpenAI(api_key=api_key, base_url="https://api.deepseek.com")
-    
-    # 构建提示词
-    system_prompt = f"""你是一个影视后期数据管理专家。你将收到一个结构化的表格数据，这是通过腾讯云表格OCR识别场记单后生成的。请根据这个结构化数据，修复并生成一个规范的JSON结果。
+    def process_slate_data(self, json_data, api_key, scene_numbers=None):
+        """
+        使用 DeepSeek API 处理场记表数据
+        :param json_data: OCR识别出的JSON数据
+        :param api_key: DeepSeek API密钥
+        :param scene_numbers: 允许的场号列表，如 ["212b", "275", "27b", "210c", "28"]
+        :return: 处理后的结果
+        """
+        
+        # 默认场号列表
+        if scene_numbers is None:
+            scene_numbers = []
+        
+        # 将场号列表转换为字符串，用于提示词
+        scene_numbers_str = "、".join(scene_numbers)
+        
+        # 设置日志
+        # 清除现有的处理器
+        for handler in logging.root.handlers[:]:
+            logging.root.removeHandler(handler)
+        
+        logging.basicConfig(
+            level=logging.INFO,
+            format='%(asctime)s - %(levelname)s - %(message)s',
+            handlers=[
+                logging.FileHandler('deepseek_api.log', encoding='utf-8', mode='a'),
+                logging.StreamHandler()
+            ],
+            force=True
+        )
+        
+        client = OpenAI(api_key=api_key, base_url=self.base_url)
+        
+        # 构建提示词
+        system_prompt = f"""你是一个影视后期数据管理专家。你将收到一个结构化的表格数据，这是通过腾讯云表格OCR识别场记单后生成的。请根据这个结构化数据，修复并生成一个规范的JSON结果。
 
 输入数据格式说明：
 - table_type: 表格类型（通常是"slate_record"）
@@ -116,115 +127,138 @@ def process_slate_data(json_data, api_key, scene_numbers=None):
 }}
 
 注意：输入数据是结构化的表格格式，包含表头和数据行的明确分离，请充分利用这个结构信息来提高处理准确性。只输出JSON，不要包含任何解释或Markdown内容。"""
-    
-    # 确保字符串编码正确
-    try:
-        if isinstance(json_data, bytes):
-            json_data = json_data.decode('utf-8')
-        elif not isinstance(json_data, str):
-            json_data = str(json_data)
         
-        user_prompt = "请处理以下数据：" + json_data
-        
-        # 构建请求体
-        request_body = {
-            "model": "deepseek-chat",
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-            "stream": False
-        }
-        
-    except UnicodeDecodeError as e:
-        error_msg = f"字符编码错误: {str(e)}"
-        logging.error(error_msg)
-        print(error_msg)
-        return None
-    
-    # 记录请求信息
-    logging.info("=" * 80)
-    logging.info(f"开始调用 DeepSeek API - {datetime.now()}")
-    logging.info("请求体 (Request Body):")
-    
-    # 为了避免编码问题，截断过长的内容
-    request_body_str = json.dumps(request_body, ensure_ascii=False, indent=2)
-    if len(request_body_str) > 2000:  # 如果请求体太长，截断显示
-        truncated_body = {
-            "model": request_body["model"],
-            "messages": [
-                {"role": "system", "content": request_body["messages"][0]["content"][:200] + "..."},
-                {"role": "user", "content": f"数据长度: {len(request_body['messages'][1]['content'])} 字符"}
-            ],
-            "stream": request_body["stream"]
-        }
-        logging.info(json.dumps(truncated_body, ensure_ascii=False, indent=2))
-    else:
-        logging.info(request_body_str)
-    logging.info("=" * 80)
-    
-    # 打印请求体到控制台（简化版本）
-    print("\n" + "=" * 80)
-    print("请求体 (Request Body) - 简化显示:")
-    print(f"模型: {request_body['model']}")
-    print(f"消息数量: {len(request_body['messages'])}")
-    print(f"用户数据长度: {len(request_body['messages'][1]['content'])} 字符")
-    print("=" * 80 + "\n")
-    
-    try:
-        print("正在调用 DeepSeek API...")
-        
-        # 直接调用API，不进行额外的编码处理
-        response = client.chat.completions.create(
-            model="deepseek-chat",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-            stream=False
-        )
-        
-        print("API 调用成功!")
-        response_content = response.choices[0].message.content
-        print(f"响应内容长度: {len(response_content)} 字符")
-        
-        # 记录API调用结果和原始响应
+        # 确保字符串编码正确
         try:
-            logging.info("API 调用成功")
-            logging.info(f"响应内容长度: {len(response_content)} 字符")
-            logging.info("DeepSeek原始响应:")
-            logging.info(response_content)
-            logging.info("响应内容已获取")
-            logging.info("=" * 80)
-        except:
-            print("日志记录出现问题，但API调用成功")
-            print("DeepSeek原始响应:")
-            print(response_content)
-        
-        return response_content
-        
-    except Exception as e:
-        error_msg = f"调用 DeepSeek API 时发生错误: {type(e).__name__}: {str(e)}"
-        print(error_msg)
-        try:
+            if isinstance(json_data, bytes):
+                json_data = json_data.decode('utf-8')
+            elif not isinstance(json_data, str):
+                json_data = str(json_data)
+            
+            user_prompt = "请处理以下数据：" + json_data
+            
+            # 构建请求体
+            request_body = {
+                "model": "deepseek-chat",
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                "stream": False
+            }
+            
+        except UnicodeDecodeError as e:
+            error_msg = f"字符编码错误: {str(e)}"
             logging.error(error_msg)
-        except:
-            pass  # 忽略日志记录错误
-        return None
+            print(error_msg)
+            return None
+        
+        # 记录请求信息
+        logging.info("=" * 80)
+        logging.info(f"开始调用 DeepSeek API - {datetime.now()}")
+        logging.info("请求体 (Request Body):")
+        
+        # 为了避免编码问题，截断过长的内容
+        request_body_str = json.dumps(request_body, ensure_ascii=False, indent=2)
+        if len(request_body_str) > 2000:  # 如果请求体太长，截断显示
+            truncated_body = {
+                "model": request_body["model"],
+                "messages": [
+                    {"role": "system", "content": request_body["messages"][0]["content"][:200] + "..."},
+                    {"role": "user", "content": f"数据长度: {len(request_body['messages'][1]['content'])} 字符"}
+                ],
+                "stream": request_body["stream"]
+            }
+            logging.info(json.dumps(truncated_body, ensure_ascii=False, indent=2))
+        else:
+            logging.info(request_body_str)
+        logging.info("=" * 80)
+        
+        # 打印请求体到控制台（简化版本）
+        print("\n" + "=" * 80)
+        print("请求体 (Request Body) - 简化显示:")
+        print(f"模型: {request_body['model']}")
+        print(f"消息数量: {len(request_body['messages'])}")
+        print(f"用户数据长度: {len(request_body['messages'][1]['content'])} 字符")
+        print("=" * 80 + "\n")
+        
+        try:
+            print("正在调用 DeepSeek API...")
+            
+            # 直接调用API，不进行额外的编码处理
+            response = client.chat.completions.create(
+                model="deepseek-chat",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                stream=False
+            )
+            
+            print("API 调用成功!")
+            response_content = response.choices[0].message.content
+            print(f"响应内容长度: {len(response_content)} 字符")
+            
+            # 记录API调用结果和原始响应
+            try:
+                logging.info("API 调用成功")
+                logging.info(f"响应内容长度: {len(response_content)} 字符")
+                logging.info("DeepSeek原始响应:")
+                logging.info(response_content)
+                logging.info("响应内容已获取")
+                logging.info("=" * 80)
+            except:
+                print("日志记录出现问题，但API调用成功")
+                print("DeepSeek原始响应:")
+                print(response_content)
+            
+            return response_content
+            
+        except Exception as e:
+            error_msg = f"调用 DeepSeek API 时发生错误: {type(e).__name__}: {str(e)}"
+            print(error_msg)
+            try:
+                logging.error(error_msg)
+            except:
+                pass  # 忽略日志记录错误
+            return None
+
+
+def process_slate_data(json_data, api_key, scene_numbers=None):
+    """
+    向后兼容的函数接口
+    """
+    processor = DeepSeekProcessor()
+    return processor.process_slate_data(json_data, api_key, scene_numbers)
+
 
 # 测试示例
 if __name__ == "__main__":
-    # 请替换为您的 DeepSeek API 密钥
-    API_KEY = "sk-f71759d6e28b4985818ea73abcc4eebb"
+    # 测试用例
+    test_json_data = {
+        "CellInfos": [
+            [
+                {"Text": "场号", "Polygon": []},
+                {"Text": "镜号", "Polygon": []},
+                {"Text": "次数", "Polygon": []},
+                {"Text": "景别", "Polygon": []},
+                {"Text": "时码", "Polygon": []},
+                {"Text": "视效", "Polygon": []},
+                {"Text": "成绩", "Polygon": []}
+            ],
+            [
+                {"Text": "212b", "Polygon": []},
+                {"Text": "001", "Polygon": []},
+                {"Text": "1", "Polygon": []},
+                {"Text": "全景", "Polygon": []},
+                {"Text": "10:30:15", "Polygon": []},
+                {"Text": "无", "Polygon": []},
+                {"Text": "OK", "Polygon": []}
+            ]
+        ]
+    }
     
-    # 示例JSON数据（请替换为实际的OCR识别结果）
-    sample_json = {"words_result":[{"location":{"top":16,"left":17,"width":44,"height":23},"words":"场号"},{"location":{"top":16,"left":86,"width":44,"height":23},"words":"镜号"},{"location":{"top":15,"left":144,"width":43,"height":22},"words":"次数"},{"location":{"top":16,"left":209,"width":42,"height":23},"words":"景别"},{"location":{"top":17,"left":281,"width":44,"height":22},"words":"时码"},{"location":{"top":16,"left":343,"width":43,"height":23},"words":"视效"},{"location":{"top":17,"left":393,"width":43,"height":23},"words":"成绩"},{"location":{"top":55,"left":7,"width":56,"height":34},"words":"24a"},{"location":{"top":46,"left":210,"width":31,"height":54},"words":"中"},{"location":{"top":49,"left":274,"width":61,"height":58},"words":"c019"},{"location":{"top":107,"left":160,"width":26,"height":25},"words":"2"},{"location":{"top":101,"left":277,"width":61,"height":34},"words":"CoXo"},{"location":{"top":106,"left":400,"width":22,"height":28},"words":"0"},{"location":{"top":146,"left":155,"width":23,"height":32},"words":"3"},{"location":{"top":152,"left":279,"width":50,"height":27},"words":"C021"},{"location":{"top":141,"left":396,"width":40,"height":50},"words":"√"},{"location":{"top":236,"left":10,"width":54,"height":28},"words":"24a"},{"location":{"top":231,"left":102,"width":31,"height":33},"words":"4"},{"location":{"top":231,"left":280,"width":66,"height":40},"words":"C023"},{"location":{"top":276,"left":161,"width":29,"height":32},"words":"2"},{"location":{"top":278,"left":284,"width":55,"height":41},"words":"Co24"},{"location":{"top":263,"left":389,"width":52,"height":48},"words":"√"},{"location":{"top":366,"left":13,"width":61,"height":33},"words":"24a"},{"location":{"top":358,"left":94,"width":33,"height":37},"words":"5"},{"location":{"top":363,"left":164,"width":14,"height":32},"words":"1"},{"location":{"top":359,"left":211,"width":40,"height":41},"words":"特"},{"location":{"top":359,"left":281,"width":55,"height":33},"words":"Go25"},{"location":{"top":355,"left":390,"width":37,"height":37},"words":"√"},{"location":{"top":447,"left":19,"width":52,"height":32},"words":"24a"},{"location":{"top":442,"left":108,"width":16,"height":38},"words":"6"},{"location":{"top":446,"left":212,"width":41,"height":38},"words":"特"},{"location":{"top":444,"left":281,"width":53,"height":34},"words":"C026"},{"location":{"top":434,"left":397,"width":35,"height":51},"words":"√"},{"location":{"top":536,"left":22,"width":53,"height":29},"words":"240"},{"location":{"top":537,"left":113,"width":25,"height":39},"words":"?"},{"location":{"top":538,"left":167,"width":11,"height":24},"words":"I"},{"location":{"top":528,"left":215,"width":40,"height":36},"words":"特"},{"location":{"top":522,"left":279,"width":62,"height":75},"words":"G27"},{"location":{"top":520,"left":397,"width":42,"height":49},"words":"√"},{"location":{"top":622,"left":25,"width":46,"height":28},"words":"24a"},{"location":{"top":619,"left":103,"width":25,"height":33},"words":"8"},{"location":{"top":611,"left":284,"width":55,"height":48},"words":"C028"},{"location":{"top":613,"left":350,"width":27,"height":36},"words":"0"},{"location":{"top":662,"left":163,"width":27,"height":27},"words":"2"},{"location":{"top":662,"left":285,"width":49,"height":34},"words":"C029"},{"location":{"top":653,"left":394,"width":31,"height":46},"words":"√"},{"location":{"top":821,"left":7,"width":58,"height":66},"words":"R39"},{"location":{"top":835,"left":103,"width":38,"height":30},"words":"2"},{"location":{"top":828,"left":282,"width":53,"height":39},"words":"000"},{"location":{"top":874,"left":161,"width":29,"height":27},"words":">"},{"location":{"top":879,"left":282,"width":57,"height":29},"words":"c002"},{"location":{"top":917,"left":157,"width":28,"height":33},"words":"3"},{"location":{"top":920,"left":277,"width":62,"height":40},"words":"a03"},{"location":{"top":905,"left":401,"width":40,"height":48},"words":"√"},{"location":{"top":994,"left":5,"width":52,"height":64},"words":"R39"},{"location":{"top":997,"left":108,"width":18,"height":34},"words":"6"},{"location":{"top":1002,"left":156,"width":13,"height":28},"words":"I"},{"location":{"top":994,"left":285,"width":59,"height":42},"words":"coo4"},{"location":{"top":1045,"left":149,"width":24,"height":29},"words":"2"},{"location":{"top":1088,"left":157,"width":30,"height":39},"words":"3"},{"location":{"top":1084,"left":286,"width":55,"height":42},"words":"coot"},{"location":{"top":1136,"left":154,"width":29,"height":32},"words":"4"},{"location":{"top":1128,"left":282,"width":49,"height":43},"words":"C007"},{"location":{"top":1170,"left":154,"width":28,"height":48},"words":"5"},{"location":{"top":1169,"left":283,"width":61,"height":40},"words":"coo8"},{"location":{"top":1169,"left":395,"width":41,"height":52},"words":"√"},{"location":{"top":1254,"left":7,"width":118,"height":62},"words":"K.299"},{"location":{"top":1252,"left":278,"width":58,"height":59},"words":"Coo9"},{"location":{"top":1300,"left":156,"width":30,"height":36},"words":"√"},{"location":{"top":1308,"left":283,"width":50,"height":28},"words":"a1D"}],"words_result_num":70,"log_id":1965400559722413183}
-    
-    # 处理数据
-    result = process_slate_data(json.dumps(sample_json), API_KEY)
-    
-    if result:
-        print("处理结果:")
-        print(result)
-    else:
-        print("处理失败") 
+    processor = DeepSeekProcessor()
+    # 注意：实际使用时需要传入有效的API密钥
+    # result = processor.process_slate_data(test_json_data, "your-api-key-here")
+    # print(result) 
