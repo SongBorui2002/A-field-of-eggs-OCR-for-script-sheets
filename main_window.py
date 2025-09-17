@@ -41,6 +41,7 @@ class MainWindow(QMainWindow):
         self.current_index = 0
         self.ocr_results = {}
         self.card_numbers = {}    # 存储每张图像对应的卡号 {index: card_number}
+        self.table_data = {}      # 存储每张图像对应的表格数据 {index: table_data}
         self.temp_dir = None      # 临时目录路径
         self.process_thread = None  # 后台处理线程
         self.current_pdf_path = ""  # 当前打开的PDF文件路径
@@ -231,8 +232,8 @@ class MainWindow(QMainWindow):
         scene_layout.addWidget(self.scene_input)
         bottom_layout.addLayout(scene_layout)
         
-        # 操作按钮
-        button_layout = QHBoxLayout()
+        # OCR处理按钮
+        ocr_button_layout = QHBoxLayout()
         
         self.start_button = QPushButton("开始批量处理")
         self.start_button.clicked.connect(self.start_batch_process)
@@ -242,11 +243,51 @@ class MainWindow(QMainWindow):
         self.stop_button.clicked.connect(self.stop_batch_process)
         self.stop_button.setEnabled(False)
         
-        button_layout.addWidget(self.start_button)
-        button_layout.addWidget(self.stop_button)
-        button_layout.addStretch()
+        ocr_button_layout.addWidget(self.start_button)
+        ocr_button_layout.addWidget(self.stop_button)
+        ocr_button_layout.addStretch()
         
-        bottom_layout.addLayout(button_layout)
+        bottom_layout.addLayout(ocr_button_layout)
+        
+        # 分隔线
+        separator = QFrame()
+        separator.setFrameShape(QFrame.HLine)
+        separator.setFrameShadow(QFrame.Sunken)
+        bottom_layout.addWidget(separator)
+        
+        # 元数据处理区域
+        metadata_layout = QVBoxLayout()
+        metadata_label = QLabel("元数据处理:")
+        metadata_label.setStyleSheet("font-weight: bold; margin-top: 5px;")
+        metadata_layout.addWidget(metadata_label)
+        
+        # 元数据文件选择
+        metadata_file_layout = QHBoxLayout()
+        metadata_file_layout.addWidget(QLabel("元数据CSV文件:"))
+        
+        self.metadata_path_input = QLineEdit()
+        self.metadata_path_input.setPlaceholderText("选择要更新的CSV文件...")
+        self.metadata_path_input.setReadOnly(True)
+        metadata_file_layout.addWidget(self.metadata_path_input)
+        
+        self.select_metadata_button = QPushButton("选择文件")
+        self.select_metadata_button.clicked.connect(self.select_metadata_file)
+        metadata_file_layout.addWidget(self.select_metadata_button)
+        
+        metadata_layout.addLayout(metadata_file_layout)
+        
+        # 元数据处理按钮
+        metadata_button_layout = QHBoxLayout()
+        
+        self.start_metadata_button = QPushButton("开始录入元数据")
+        self.start_metadata_button.clicked.connect(self.start_metadata_update)
+        self.start_metadata_button.setEnabled(False)
+        
+        metadata_button_layout.addWidget(self.start_metadata_button)
+        metadata_button_layout.addStretch()
+        
+        metadata_layout.addLayout(metadata_button_layout)
+        bottom_layout.addLayout(metadata_layout)
         
         # 进度条
         self.progress_bar = QProgressBar()
@@ -320,6 +361,17 @@ class MainWindow(QMainWindow):
         except Exception as e:
             QMessageBox.critical(self, "错误", f"转换PDF时出错: {str(e)}")
             
+    def save_current_table_data(self):
+        """保存当前表格数据"""
+        if hasattr(self, 'current_index') and self.current_index >= 0:
+            # 保存卡号
+            card_number = self.table_editor.get_card_number()
+            self.card_numbers[self.current_index] = card_number
+            
+            # 保存表格数据
+            table_records = self.table_editor.export_for_metadata_update(card_number)
+            self.table_data[self.current_index] = table_records
+
     def show_current_image(self):
         """显示当前图像"""
         if self.current_images and 0 <= self.current_index < len(self.current_images):
@@ -334,21 +386,54 @@ class MainWindow(QMainWindow):
         card_number = self.card_numbers.get(self.current_index, "")
         self.table_editor.set_card_number(card_number)
         
-        # 如果有OCR结果，显示在表格中
-        if self.current_index in self.ocr_results:
+        # 优先加载保存的表格数据，如果没有则加载OCR结果
+        if self.current_index in self.table_data and self.table_data[self.current_index]:
+            # 加载保存的表格数据
+            self.load_table_data_from_records(self.table_data[self.current_index])
+        elif self.current_index in self.ocr_results:
+            # 加载OCR结果
             result = self.ocr_results[self.current_index]
             if result.get('status') == 'success':
                 self.table_editor.load_data(result.get('result', {}))
+                
+    def load_table_data_from_records(self, records):
+        """从记录列表加载表格数据"""
+        if not records:
+            return
+            
+        self.table_editor.clear_table()
+        self.table_editor.table.setRowCount(len(records))
+        
+        for i, record in enumerate(records):
+            values = [
+                record.get('scene', ''),
+                record.get('shot', ''),
+                record.get('take', ''),
+                record.get('framing', ''),
+                record.get('timecode', ''),
+                record.get('vfx', ''),
+                record.get('result', '')
+            ]
+            
+            for j, value in enumerate(values):
+                if j < self.table_editor.table.columnCount():
+                    from PySide6.QtWidgets import QTableWidgetItem
+                    item = QTableWidgetItem(str(value))
+                    self.table_editor.table.setItem(i, j, item)
             
     def prev_image(self):
         """显示上一张图像"""
         if self.current_index > 0:
+            # 保存当前表格数据
+            self.save_current_table_data()
             self.current_index -= 1
             self.show_current_image()
             
     def next_image(self):
         """显示下一张图像"""
         if self.current_index < len(self.current_images) - 1:
+            # 保存当前表格数据
+            self.save_current_table_data()
             self.current_index += 1
             self.show_current_image()
         
@@ -442,8 +527,105 @@ class MainWindow(QMainWindow):
                          "场记单OCR处理系统 v1.0\n\n"
                          "基于深度学习的场记单自动识别系统")
     
+    def collect_all_table_data_for_metadata(self):
+        """收集所有表格数据用于元数据更新"""
+        from metadata_processor import MetadataProcessor
+        
+        all_records = []
+        processor = MetadataProcessor()
+        
+        # 先保存当前表格数据
+        self.save_current_table_data()
+        
+        # 遍历所有图像，收集表格数据
+        for index in range(len(self.current_images)):
+            card_number = self.card_numbers.get(index, "")
+            
+            # 优先使用保存的表格数据
+            if index in self.table_data and self.table_data[index]:
+                all_records.extend(self.table_data[index])
+            # 如果没有保存的表格数据，尝试从OCR结果提取
+            elif index in self.ocr_results and self.ocr_results[index].get('status') == 'success':
+                records = processor.extract_records_from_ocr(self.ocr_results[index], card_number)
+                all_records.extend(records)
+        
+        print(f"收集到的总记录数: {len(all_records)}")
+        return all_records
+    
+    def select_metadata_file(self):
+        """选择元数据CSV文件"""
+        csv_path, _ = QFileDialog.getOpenFileName(
+            self, "选择元数据CSV文件", "", "CSV files (*.csv)"
+        )
+        
+        if csv_path:
+            self.metadata_path_input.setText(csv_path)
+            self.start_metadata_button.setEnabled(True)
+    
+    def start_metadata_update(self):
+        """开始元数据更新（新增功能）"""
+        from metadata_processor import MetadataProcessor
+        
+        # 获取选择的CSV文件路径
+        csv_path = self.metadata_path_input.text().strip()
+        
+        if not csv_path:
+            QMessageBox.warning(self, "警告", "请先选择元数据CSV文件")
+            return
+        
+        if not os.path.exists(csv_path):
+            QMessageBox.warning(self, "警告", "选择的CSV文件不存在")
+            return
+        
+        # 收集场记单数据
+        all_records = self.collect_all_table_data_for_metadata()
+        
+        if not all_records:
+            QMessageBox.warning(self, "警告", "没有可用的场记单数据\n请先进行OCR处理或在表格中输入数据")
+            return
+        
+        # 显示将要处理的记录数
+        reply = QMessageBox.question(
+            self, "确认", 
+            f"找到 {len(all_records)} 条场记单记录\n选择的文件: {os.path.basename(csv_path)}\n\n是否继续进行元数据更新？",
+            QMessageBox.Yes | QMessageBox.No
+        )
+        
+        if reply != QMessageBox.Yes:
+            return
+        
+        # 处理元数据更新
+        try:
+            self.status_bar.showMessage("正在处理元数据更新...")
+            self.start_metadata_button.setEnabled(False)
+            
+            processor = MetadataProcessor()
+            result = processor.process_metadata_update(csv_path, all_records)
+            
+            # 显示结果
+            if result.get('status') != 'error':
+                message = f"元数据更新完成!\n\n"
+                message += f"✓ 成功更新: {result['matched_count']} 条记录\n"
+                message += f"⚠ 未找到匹配: {result['unmatched_count']} 条记录\n"
+                message += f"❌ 处理错误: {result['error_count']} 条记录\n\n"
+                message += f"输出文件: {result.get('output_path', 'N/A')}"
+                QMessageBox.information(self, "完成", message)
+                self.status_bar.showMessage("元数据更新完成")
+            else:
+                QMessageBox.critical(self, "错误", f"处理失败: {result['message']}")
+                self.status_bar.showMessage("元数据更新失败")
+                
+        except Exception as e:
+            QMessageBox.critical(self, "错误", f"元数据更新过程中发生错误:\n{str(e)}")
+            self.status_bar.showMessage("元数据更新出错")
+        finally:
+            self.start_metadata_button.setEnabled(True)
+    
     def closeEvent(self, event):
         """窗口关闭事件"""
+        # 保存当前表格数据
+        self.save_current_table_data()
+        
         # 停止处理线程
         if self.process_thread and self.process_thread.isRunning():
             self.process_thread.stop()

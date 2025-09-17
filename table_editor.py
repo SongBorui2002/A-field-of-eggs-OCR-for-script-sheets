@@ -608,3 +608,39 @@ class TableEditor(QWidget):
     def clear_card_number(self):
         """清空卡号"""
         self.card_input.clear()
+    
+    def export_for_metadata_update(self, card_number: str = "") -> list:
+        """导出表格数据用于元数据更新"""
+        records = []
+        
+        for row in range(self.table.rowCount()):
+            # 获取行数据
+            scene = self._get_cell_text(row, 0)
+            shot = self._get_cell_text(row, 1) 
+            take = self._get_cell_text(row, 2)
+            framing = self._get_cell_text(row, 3)
+            timecode = self._get_cell_text(row, 4)
+            vfx = self._get_cell_text(row, 5)
+            result = self._get_cell_text(row, 6)
+            
+            # 只导出有效数据（至少有场号、镜号、次数）
+            if scene.strip() and shot.strip() and take.strip():
+                records.append({
+                    'scene': scene,
+                    'shot': shot,
+                    'take': take,
+                    'framing': framing,
+                    'timecode': timecode,
+                    'vfx': vfx,
+                    'result': result,
+                    'card_number': card_number or self.get_card_number()
+                })
+        
+        return records
+    
+    def _get_cell_text(self, row: int, col: int) -> str:
+        """安全获取单元格文本"""
+        if row >= self.table.rowCount() or col >= self.table.columnCount():
+            return ""
+        item = self.table.item(row, col)
+        return item.text().strip() if item else ""
