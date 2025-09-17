@@ -40,8 +40,10 @@ class MainWindow(QMainWindow):
         self.current_images = []
         self.current_index = 0
         self.ocr_results = {}
+        self.card_numbers = {}    # 存储每张图像对应的卡号 {index: card_number}
         self.temp_dir = None      # 临时目录路径
         self.process_thread = None  # 后台处理线程
+        self.current_pdf_path = ""  # 当前打开的PDF文件路径
         self.setup_ui()
         self.connect_signals()
         
@@ -204,21 +206,15 @@ class MainWindow(QMainWindow):
         
         toolbar.addSeparator()
         
-        # 上一张/下一张
-        prev_action = QAction("上一张", self)
-        prev_action.triggered.connect(self.prev_image)
-        toolbar.addAction(prev_action)
-        
-        next_action = QAction("下一张", self)
-        next_action.triggered.connect(self.next_image)
-        toolbar.addAction(next_action)
+        # PDF路径显示标签
+        self.pdf_path_label = QLabel()
+        self.pdf_path_label.setText("PDF文件: 未选择")
+        self.pdf_path_label.setMaximumWidth(600)  # 设置最大宽度
+        self.pdf_path_label.setStyleSheet("QLabel { padding: 2px 8px; }")  # 添加内边距
+        toolbar.addWidget(self.pdf_path_label)
         
         toolbar.addSeparator()
         
-        # 开始处理
-        process_action = QAction("开始处理", self)
-        process_action.triggered.connect(self.start_batch_process)
-        toolbar.addAction(process_action)
         
     def create_bottom_panel(self, main_layout):
         """创建底部操作面板"""
@@ -271,6 +267,9 @@ class MainWindow(QMainWindow):
         self.image_viewer.prev_button.clicked.connect(self.prev_image)
         self.image_viewer.next_button.clicked.connect(self.next_image)
         
+        # 连接卡号输入框的信号
+        self.table_editor.card_input.textChanged.connect(self.on_card_number_changed)
+        
     def open_pdf(self):
         """打开PDF文件"""
         file_path, _ = QFileDialog.getOpenFileName(
@@ -278,6 +277,9 @@ class MainWindow(QMainWindow):
         )
         
         if file_path:
+            self.current_pdf_path = file_path
+            self.pdf_path_label.setText(f"PDF文件: {file_path}")
+            self.pdf_path_label.setToolTip(f"完整路径: {file_path}")  # 设置工具提示显示完整路径
             self.convert_pdf_to_images(file_path)
             
     def convert_pdf_to_images(self, pdf_path):
@@ -303,6 +305,7 @@ class MainWindow(QMainWindow):
                 self.current_images = image_paths
                 self.current_index = 0
                 self.ocr_results = {}
+                self.card_numbers = {}  # 清空卡号数据
                 
                 # 显示第一张图像
                 self.show_current_image()
@@ -327,11 +330,15 @@ class MainWindow(QMainWindow):
         self.image_viewer.prev_button.setEnabled(self.current_index > 0)
         self.image_viewer.next_button.setEnabled(self.current_index < len(self.current_images) - 1)
         
-            # 如果有OCR结果，显示在表格中
+        # 加载当前图像的卡号
+        card_number = self.card_numbers.get(self.current_index, "")
+        self.table_editor.set_card_number(card_number)
+        
+        # 如果有OCR结果，显示在表格中
         if self.current_index in self.ocr_results:
-                result = self.ocr_results[self.current_index]
-                if result.get('status') == 'success':
-                    self.table_editor.load_data(result.get('result', {}))
+            result = self.ocr_results[self.current_index]
+            if result.get('status') == 'success':
+                self.table_editor.load_data(result.get('result', {}))
             
     def prev_image(self):
         """显示上一张图像"""
@@ -410,16 +417,24 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "处理失败", message)
             
         self.status_bar.showMessage("处理完成")
+    
+    def on_card_number_changed(self):
+        """卡号输入变化时的处理"""
+        if self.current_images and 0 <= self.current_index < len(self.current_images):
+            card_number = self.table_editor.get_card_number()
+            self.card_numbers[self.current_index] = card_number
         
     def save_current_table(self):
         """保存当前表格"""
-        # TODO: 实现保存表格功能
-        QMessageBox.information(self, "提示", "保存功能待实现")
+        # TODO: 实现保存表格功能，需要包含卡号信息
+        current_card = self.table_editor.get_card_number()
+        QMessageBox.information(self, "提示", f"保存功能待实现\n当前卡号: {current_card}")
             
     def export_all_results(self):
         """导出所有结果"""
-        # TODO: 实现导出功能
-        QMessageBox.information(self, "提示", "导出功能待实现")
+        # TODO: 实现导出功能，需要包含所有卡号信息
+        card_count = len([card for card in self.card_numbers.values() if card])
+        QMessageBox.information(self, "提示", f"导出功能待实现\n已设置卡号的图像数: {card_count}/{len(self.current_images)}")
             
     def show_about(self):
         """显示关于对话框"""
@@ -436,7 +451,7 @@ class MainWindow(QMainWindow):
         
         # 清理临时目录
         if self.temp_dir and os.path.exists(self.temp_dir):
-            shutil.rmtree(self.temp_dir)
+                shutil.rmtree(self.temp_dir)
         
         event.accept()
 
