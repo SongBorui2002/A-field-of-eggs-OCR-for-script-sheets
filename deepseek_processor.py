@@ -54,8 +54,7 @@ class DeepSeekProcessor:
             level=logging.INFO,
             format='%(asctime)s - %(levelname)s - %(message)s',
             handlers=[
-                logging.FileHandler('deepseek_api.log', encoding='utf-8', mode='a'),
-                logging.StreamHandler()
+                logging.FileHandler('deepseek_api.log', encoding='utf-8', mode='a')
             ],
             force=True
         )
@@ -176,17 +175,7 @@ class DeepSeekProcessor:
             logging.info(request_body_str)
         logging.info("=" * 80)
         
-        # 打印请求体到控制台（简化版本）
-        print("\n" + "=" * 80)
-        print("请求体 (Request Body) - 简化显示:")
-        print(f"模型: {request_body['model']}")
-        print(f"消息数量: {len(request_body['messages'])}")
-        print(f"用户数据长度: {len(request_body['messages'][1]['content'])} 字符")
-        print("=" * 80 + "\n")
-        
         try:
-            print("正在调用 DeepSeek API...")
-            
             # 直接调用API，不进行额外的编码处理
             response = client.chat.completions.create(
                 model="deepseek-chat",
@@ -197,11 +186,9 @@ class DeepSeekProcessor:
                 stream=False
             )
             
-            print("API 调用成功!")
             response_content = response.choices[0].message.content
-            print(f"响应内容长度: {len(response_content)} 字符")
             
-            # 记录API调用结果和原始响应
+            # 记录API调用结果和原始响应到日志文件
             try:
                 logging.info("API 调用成功")
                 logging.info(f"响应内容长度: {len(response_content)} 字符")
@@ -210,15 +197,13 @@ class DeepSeekProcessor:
                 logging.info("响应内容已获取")
                 logging.info("=" * 80)
             except:
-                print("日志记录出现问题，但API调用成功")
-                print("DeepSeek原始响应:")
-                print(response_content)
+                # 如果日志记录失败，静默处理
+                pass
             
             return response_content
             
         except Exception as e:
             error_msg = f"调用 DeepSeek API 时发生错误: {type(e).__name__}: {str(e)}"
-            print(error_msg)
             try:
                 logging.error(error_msg)
             except:

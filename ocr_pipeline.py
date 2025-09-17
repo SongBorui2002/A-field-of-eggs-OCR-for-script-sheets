@@ -268,7 +268,7 @@ class OCRPipeline:
             response_json = resp.to_json_string()
             
             print(f"✓ 腾讯云OCR API调用成功")
-            print(f"📄 OCR原始响应内容:\n{response_json}")
+            # print(f"📄 OCR原始响应内容:\n{response_json}")
             
             # 解析表格数据为二维数组
             table_matrix = self.parse_table_data(response_json)
@@ -418,25 +418,12 @@ def main():
     
     if result:
         print("\n" + "=" * 80)
-        print("最终处理结果:")
+        print("✓ 处理完成!")
         print("=" * 80)
-        
-        if isinstance(result, dict):
-            if result.get("status") == "success":
-                # 直接显示DeepSeek返回的原始JSON
-                print(result["raw_result"])
-            else:
-                print("处理状态未知:")
-                print(result)
-        else:
-            # 向后兼容旧格式
-            print(result)
-            
-        print("\n" + "=" * 80)
-        print("处理完成!")
     else:
         print("\n" + "=" * 80)
-        print("处理失败，请检查错误信息")
+        print("✗ 处理失败，请检查错误信息")
+        print("=" * 80)
         sys.exit(1)
 
 if __name__ == "__main__":

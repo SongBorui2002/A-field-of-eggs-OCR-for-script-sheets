@@ -2,12 +2,15 @@
 # -*- coding: utf-8 -*-
 
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QScrollArea, QLabel, QPushButton
-from PySide6.QtCore import Qt, QSize
+from PySide6.QtCore import Qt, QSize, Signal
 from PySide6.QtGui import QPixmap
 
 
 class ImageViewer(QWidget):
     """图像显示组件"""
+    
+    # 添加信号
+    process_current_requested = Signal()
     
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -41,7 +44,28 @@ class ImageViewer(QWidget):
         self.prev_button.setEnabled(False)
         self.next_button.setEnabled(False)
         
+        # 添加处理当前场记单按钮
+        self.process_current_button = QPushButton("处理当前场记单")
+        self.process_current_button.setEnabled(False)
+        self.process_current_button.clicked.connect(self.process_current_requested.emit)
+        # self.process_current_button.setStyleSheet("""
+        #     QPushButton {
+        #         background-color: #4CAF50;
+        #         color: white;
+        #         font-weight: bold;
+        #         padding: 5px 10px;
+        #     }
+        #     QPushButton:hover {
+        #         background-color: #45a049;
+        #     }
+        #     QPushButton:disabled {
+        #         background-color: #cccccc;
+        #         color: #666666;
+        #     }
+        # """)
+        
         nav_layout.addWidget(self.prev_button)
+        nav_layout.addWidget(self.process_current_button)
         nav_layout.addStretch()
         nav_layout.addWidget(self.next_button)
         
@@ -60,4 +84,12 @@ class ImageViewer(QWidget):
             )
             self.image_label.setPixmap(scaled_pixmap)
         else:
-            self.image_label.setText("无法加载图像") 
+            self.image_label.setText("无法加载图像")
+            
+    def set_process_button_enabled(self, enabled):
+        """设置处理按钮的启用状态"""
+        self.process_current_button.setEnabled(enabled)
+        
+    def set_process_button_text(self, text):
+        """设置处理按钮的文本"""
+        self.process_current_button.setText(text) 

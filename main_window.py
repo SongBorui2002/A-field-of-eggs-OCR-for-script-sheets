@@ -293,6 +293,9 @@ class MainWindow(QMainWindow):
         self.image_viewer.prev_button.clicked.connect(self.prev_image)
         self.image_viewer.next_button.clicked.connect(self.next_image)
         
+        # 连接处理当前场记单按钮
+        self.image_viewer.process_current_requested.connect(self.process_current_image)
+        
         # 连接卡号输入框的信号
         self.table_editor.card_input.textChanged.connect(self.on_card_number_changed)
         
@@ -366,6 +369,11 @@ class MainWindow(QMainWindow):
         # 更新导航按钮状态
         self.image_viewer.prev_button.setEnabled(self.current_index > 0)
         self.image_viewer.next_button.setEnabled(self.current_index < len(self.current_images) - 1)
+        
+        # 更新处理按钮状态 - 只有当前有图像且不在处理中时才启用
+        has_image = bool(self.current_images and 0 <= self.current_index < len(self.current_images))
+        is_processing = self.process_thread and self.process_thread.isRunning()
+        self.image_viewer.set_process_button_enabled(has_image and not is_processing)
         
         # 加载当前图像的卡号
         card_number = self.card_numbers.get(self.current_index, "")
@@ -495,6 +503,71 @@ class MainWindow(QMainWindow):
         # TODO: 实现保存表格功能，需要包含卡号信息
         current_card = self.table_editor.get_card_number()
         QMessageBox.information(self, "提示", f"保存功能待实现\n当前卡号: {current_card}")
+    
+    def process_current_image(self):
+        """处理当前显示的场记单"""
+        if not self.current_images or self.current_index < 0 or self.current_index >= len(self.current_images):
+            QMessageBox.warning(self, "警告", "没有可处理的图像")
+            return
+        
+        # 检查是否正在处理
+        if self.process_thread and self.process_thread.isRunning():
+            QMessageBox.information(self, "提示", "正在处理中，请稍候...")
+            return
+        
+        # 获取当前图像路径
+        current_image_path = self.current_images[self.current_index]
+        
+        # 解析场号
+        scene_input = self.scene_input.text().strip()
+        scene_numbers = self.parse_scene_numbers(scene_input) if scene_input else None
+        
+        # 创建处理线程 - 只传入当前单张图像
+        self.process_thread = BatchProcessThread(
+            [current_image_path],  # 只传入当前图像，作为单元素列表
+            self.temp_dir,
+            scene_numbers,
+            self.config.deepseek_api_key
+        )
+        
+        # 连接信号
+        self.process_thread.progress_updated.connect(self.update_single_progress)
+        self.process_thread.image_processed.connect(self.handle_single_image_processed)
+        self.process_thread.process_finished.connect(self.handle_single_process_finished)
+        
+        # 更新UI状态
+        self.image_viewer.set_process_button_enabled(False)
+        self.image_viewer.set_process_button_text("处理中...")
+        self.status_bar.showMessage("正在处理当前场记单...")
+        
+        # 开始处理
+        self.process_thread.start()
+    
+    def update_single_progress(self, progress, message):
+        """更新单张图像处理进度"""
+        self.status_bar.showMessage(message)
+    
+    def handle_single_image_processed(self, index, result):
+        """处理单张图像处理结果"""
+        # index 是在传入的图像列表中的索引（应该是0），需要映射到当前图像索引
+        self.ocr_results[self.current_index] = result
+        
+        # 更新表格显示
+        if result.get('status') == 'success':
+            self.table_editor.load_data(result.get('result', {}))
+    
+    def handle_single_process_finished(self, success, message):
+        """处理单张图像处理完成"""
+        # 更新UI状态
+        self.image_viewer.set_process_button_enabled(True)
+        self.image_viewer.set_process_button_text("处理当前场记单")
+        
+        if success:
+            self.status_bar.showMessage("当前场记单处理完成")
+            QMessageBox.information(self, "完成", "当前场记单处理完成")
+        else:
+            self.status_bar.showMessage("处理失败")
+            QMessageBox.warning(self, "处理失败", message)
             
     def export_all_results(self):
         """导出所有结果"""

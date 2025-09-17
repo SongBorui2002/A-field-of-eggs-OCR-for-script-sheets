@@ -83,6 +83,17 @@ class BatchProcessThread(QThread):
         """复制原始图像到临时目录"""
         try:
             original_images_dir = os.path.join(self.temp_dir, "original_images")
+            original_images_processed_dir = os.path.join(self.temp_dir, "original_images_processed")
+            
+            # 清理旧的图像文件，确保每次只处理当前选中的图像
+            if os.path.exists(original_images_dir):
+                shutil.rmtree(original_images_dir)
+                print(f"✓ 清理旧的图像目录: {original_images_dir}")
+            
+            if os.path.exists(original_images_processed_dir):
+                shutil.rmtree(original_images_processed_dir)
+                print(f"✓ 清理旧的图像目录: {original_images_processed_dir}")
+            
             os.makedirs(original_images_dir, exist_ok=True)
             
             for i, image_path in enumerate(self.image_paths):
