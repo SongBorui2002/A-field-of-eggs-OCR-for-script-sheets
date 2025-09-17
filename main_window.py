@@ -10,7 +10,7 @@ from pathlib import Path
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
     QSplitter, QLabel, QPushButton, 
-    QStatusBar, QMenuBar, QToolBar, QProgressBar,
+    QStatusBar, QMenuBar, QToolBar,
     QFileDialog, QMessageBox, QFrame, QLineEdit
 )
 from PySide6.QtCore import Qt, QSize
@@ -221,20 +221,26 @@ class MainWindow(QMainWindow):
         """创建底部操作面板"""
         bottom_frame = QFrame()
         bottom_frame.setFrameStyle(QFrame.Box)
+        bottom_frame.setMaximumHeight(150)  # 限制底部面板最大高度
         bottom_layout = QVBoxLayout(bottom_frame)
-        bottom_layout.setContentsMargins(10, 10, 10, 10)
+        bottom_layout.setContentsMargins(10, 5, 10, 5)  # 减少垂直边距
+        bottom_layout.setSpacing(5)  # 减少控件间距
+        
+        # 场号输入和OCR处理按钮放在同一行
+        top_controls_layout = QHBoxLayout()
         
         # 场号输入
-        scene_layout = QHBoxLayout()
-        scene_layout.addWidget(QLabel("指定场号 (用逗号分隔，留空处理所有):"))
+        scene_label = QLabel("指定场号:")
+        scene_label.setMinimumWidth(70)
         self.scene_input = QLineEdit()
         self.scene_input.setPlaceholderText("例如: 23a,24b,25c")
-        scene_layout.addWidget(self.scene_input)
-        bottom_layout.addLayout(scene_layout)
+        #self.scene_input.setMaximumWidth(1400)
+        
+        top_controls_layout.addWidget(scene_label)
+        top_controls_layout.addWidget(self.scene_input, 1)
+        top_controls_layout.addSpacing(20)  # 添加间距
         
         # OCR处理按钮
-        ocr_button_layout = QHBoxLayout()
-        
         self.start_button = QPushButton("开始批量处理")
         self.start_button.clicked.connect(self.start_batch_process)
         self.start_button.setEnabled(False)
@@ -243,56 +249,35 @@ class MainWindow(QMainWindow):
         self.stop_button.clicked.connect(self.stop_batch_process)
         self.stop_button.setEnabled(False)
         
-        ocr_button_layout.addWidget(self.start_button)
-        ocr_button_layout.addWidget(self.stop_button)
-        ocr_button_layout.addStretch()
+        top_controls_layout.addWidget(self.start_button)
+        top_controls_layout.addWidget(self.stop_button)
+        top_controls_layout.addStretch()
         
-        bottom_layout.addLayout(ocr_button_layout)
+        bottom_layout.addLayout(top_controls_layout)
         
-        # 分隔线
-        separator = QFrame()
-        separator.setFrameShape(QFrame.HLine)
-        separator.setFrameShadow(QFrame.Sunken)
-        bottom_layout.addWidget(separator)
-        
-        # 元数据处理区域
-        metadata_layout = QVBoxLayout()
-        metadata_label = QLabel("元数据处理:")
-        metadata_label.setStyleSheet("font-weight: bold; margin-top: 5px;")
-        metadata_layout.addWidget(metadata_label)
-        
-        # 元数据文件选择
-        metadata_file_layout = QHBoxLayout()
-        metadata_file_layout.addWidget(QLabel("元数据CSV文件:"))
+        # 元数据处理区域 - 简化为一行
+        metadata_layout = QHBoxLayout()
+        metadata_label = QLabel("元数据CSV:")
+        metadata_label.setMinimumWidth(80)
         
         self.metadata_path_input = QLineEdit()
         self.metadata_path_input.setPlaceholderText("选择要更新的CSV文件...")
         self.metadata_path_input.setReadOnly(True)
-        metadata_file_layout.addWidget(self.metadata_path_input)
         
         self.select_metadata_button = QPushButton("选择文件")
         self.select_metadata_button.clicked.connect(self.select_metadata_file)
-        metadata_file_layout.addWidget(self.select_metadata_button)
-        
-        metadata_layout.addLayout(metadata_file_layout)
-        
-        # 元数据处理按钮
-        metadata_button_layout = QHBoxLayout()
         
         self.start_metadata_button = QPushButton("开始录入元数据")
         self.start_metadata_button.clicked.connect(self.start_metadata_update)
         self.start_metadata_button.setEnabled(False)
         
-        metadata_button_layout.addWidget(self.start_metadata_button)
-        metadata_button_layout.addStretch()
+        metadata_layout.addWidget(metadata_label)
+        metadata_layout.addWidget(self.metadata_path_input, 1)
+        metadata_layout.addWidget(self.select_metadata_button)
+        metadata_layout.addWidget(self.start_metadata_button)
+        metadata_layout.addStretch()
         
-        metadata_layout.addLayout(metadata_button_layout)
         bottom_layout.addLayout(metadata_layout)
-        
-        # 进度条
-        self.progress_bar = QProgressBar()
-        self.progress_bar.setVisible(False)
-        bottom_layout.addWidget(self.progress_bar)
         
         main_layout.addWidget(bottom_frame)
         
@@ -463,8 +448,6 @@ class MainWindow(QMainWindow):
         # 更新UI状态
         self.start_button.setEnabled(False)
         self.stop_button.setEnabled(True)
-        self.progress_bar.setVisible(True)
-        self.progress_bar.setValue(0)
         
         # 开始处理
         self.process_thread.start()
@@ -477,7 +460,6 @@ class MainWindow(QMainWindow):
             
     def update_progress(self, value, message):
         """更新进度"""
-        self.progress_bar.setValue(value)
         self.status_bar.showMessage(message)
         
     def handle_image_processed(self, index, result):
@@ -493,7 +475,6 @@ class MainWindow(QMainWindow):
         # 更新UI状态
         self.start_button.setEnabled(True)
         self.stop_button.setEnabled(False)
-        self.progress_bar.setVisible(False)
         
         # 显示结果
         if success:

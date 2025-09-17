@@ -41,8 +41,8 @@ class AppConfig:
         
         # UI配置
         self.window_config = {
-            'min_width': 1400,
-            'min_height': 900,
+            'min_width': 800,
+            'min_height': 500,
             'default_width': 1600,
             'default_height': 1000,
             'splitter_sizes': [600, 900]
