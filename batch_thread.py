@@ -243,9 +243,11 @@ class BatchProcessThread(QThread):
                         parsed_result = self.parse_ocr_result(raw_result)
                         
                         if parsed_result:
+                            # 进行数据二次处理
+                            processed_result = self.post_process_result(parsed_result)
                             self.image_processed.emit(global_index, {
                                 "image_path": image_path,
-                                "result": parsed_result,
+                                "result": processed_result,
                                 "status": "success"
                             })
                             successful_count += 1
@@ -391,6 +393,46 @@ class BatchProcessThread(QThread):
             print(f"解析OCR结果时出错: {str(e)}")
             print(f"原始结果前500字符: {str(raw_result)[:500]}")
             return None
+    
+    def post_process_result(self, ocr_result):
+        """
+        对OCR结果进行二次处理
+        - 视效字段：将所有有值的改为"VFX"
+        - 成绩字段：√、v、V等改为OK，o、0等改为NG，x、X等改为NG
+        """
+        if not ocr_result or 'rows' not in ocr_result:
+            return ocr_result
+        
+        processed_result = ocr_result.copy()
+        processed_rows = []
+        
+        for row in processed_result['rows']:
+            if isinstance(row, dict):
+                processed_row = row.copy()
+                
+                # 处理视效字段 (vfx)
+                vfx_value = processed_row.get('vfx', '').strip()
+                if vfx_value:  # 如果有值且不为空
+                    processed_row['vfx'] = 'VFX'
+                
+                # 处理成绩字段 (result)
+                result_value = processed_row.get('result', '').strip().lower()
+                if result_value:
+                    if result_value in ['√', 'v', '✓', '对', 'ok','OK', 'good']:
+                        processed_row['result'] = 'OK'
+                    elif result_value in ['o', '0', '○', '圆']:
+                        processed_row['result'] = 'NG'
+                    elif result_value in ['x', '×', '✗', '错', 'error', 'fail', 'NG', 'ng']:
+                        processed_row['result'] = 'NG'
+                    # 如果不匹配任何规则，保持原值
+                
+                processed_rows.append(processed_row)
+            else:
+                # 如果是数组格式，保持原样
+                processed_rows.append(row)
+        
+        processed_result['rows'] = processed_rows
+        return processed_result
     
     def stop(self):
         """停止处理"""
