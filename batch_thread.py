@@ -432,7 +432,7 @@ class BatchProcessThread(QThread):
                     if result_value in ['√', 'v', '✓', '对', 'ok','OK', 'good']:
                         processed_row['result'] = 'OK'
                     elif result_value in ['o', '0', '○', '圆']:
-                        processed_row['result'] = 'NG'
+                        processed_row['result'] = 'KP'
                     elif result_value in ['x', '×', '✗', '错', 'error', 'fail', 'NG', 'ng']:
                         processed_row['result'] = 'NG'
                     # 如果不匹配任何规则，保持原值
