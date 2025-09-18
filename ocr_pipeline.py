@@ -420,6 +420,11 @@ def main():
         print("\n" + "=" * 80)
         print("✓ 处理完成!")
         print("=" * 80)
+        
+        # 输出JSON结果到stdout（供BatchThread使用）
+        if isinstance(result, dict) and result.get("status") == "success":
+            # 直接输出DeepSeek返回的原始JSON
+            print(result["raw_result"])  
     else:
         print("\n" + "=" * 80)
         print("✗ 处理失败，请检查错误信息")
