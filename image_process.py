@@ -7,15 +7,35 @@
   批量处理: python image_process.py --batch <输入文件夹路径>
 """
 
+# 设置环境变量确保UTF-8编码
+import os
+os.environ['PYTHONIOENCODING'] = 'utf-8'
+os.environ['LANG'] = 'zh_CN.UTF-8'
+os.environ['LC_ALL'] = 'zh_CN.UTF-8'
+
 import cv2
 import numpy as np
 import sys
-import os
 from pathlib import Path
 import glob
 import multiprocessing
 from concurrent.futures import ProcessPoolExecutor, as_completed
 import psutil
+
+def setup_encoding():
+    """设置标准输出编码"""
+    if sys.version_info[0] == 3:
+        import io
+        try:
+            if hasattr(sys.stdout, 'buffer') and not hasattr(sys.stdout, '_wrapped'):
+                sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', line_buffering=True)
+                sys.stdout._wrapped = True
+            if hasattr(sys.stderr, 'buffer') and not hasattr(sys.stderr, '_wrapped'):
+                sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', line_buffering=True)
+                sys.stderr._wrapped = True
+        except (AttributeError, ValueError):
+            # 如果重新包装失败，保持原始流不变
+            pass
 
 # LUT处理相关导入
 try:
@@ -473,6 +493,9 @@ def process_single_file(image_path, lut_path, crop_config):
 
 
 def main():
+    # 设置编码
+    setup_encoding()
+    
     # 检查命令行参数
     if len(sys.argv) < 2 or sys.argv[1] in ['-h', '--help', '-help', 'help']:
         print("集成图像处理脚本 - LUT处理 + 表格裁剪")

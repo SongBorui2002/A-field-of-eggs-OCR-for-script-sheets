@@ -7,11 +7,21 @@ os.environ['PYTHONIOENCODING'] = 'utf-8'
 os.environ['LANG'] = 'zh_CN.UTF-8'
 os.environ['LC_ALL'] = 'zh_CN.UTF-8'
 
-# 设置默认编码
-if sys.version_info[0] == 3:
-    import io
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
-    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
+# 设置默认编码 - 仅在直接运行时设置，不在导入时设置
+def setup_encoding():
+    """设置标准输出编码"""
+    if sys.version_info[0] == 3:
+        import io
+        try:
+            if hasattr(sys.stdout, 'buffer') and not hasattr(sys.stdout, '_wrapped'):
+                sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', line_buffering=True)
+                sys.stdout._wrapped = True
+            if hasattr(sys.stderr, 'buffer') and not hasattr(sys.stderr, '_wrapped'):
+                sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', line_buffering=True)
+                sys.stderr._wrapped = True
+        except (AttributeError, ValueError):
+            # 如果重新包装失败，保持原始流不变
+            pass
 
 from openai import OpenAI
 import json

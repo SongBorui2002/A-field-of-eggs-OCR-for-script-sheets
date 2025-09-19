@@ -267,6 +267,10 @@ class MainWindow(QMainWindow):
         
         self.select_metadata_button = QPushButton("选择文件")
         self.select_metadata_button.clicked.connect(self.select_metadata_file)
+
+        # 从Resolve中导出元数据CSV文件按钮
+        self.select_resolve_metadata_button = QPushButton("从Resolve导出元数据")
+        self.select_resolve_metadata_button.clicked.connect(self.export_from_resolve)
         
         self.start_metadata_button = QPushButton("开始录入元数据")
         self.start_metadata_button.clicked.connect(self.start_metadata_update)
@@ -275,6 +279,7 @@ class MainWindow(QMainWindow):
         metadata_layout.addWidget(metadata_label)
         metadata_layout.addWidget(self.metadata_path_input, 1)
         metadata_layout.addWidget(self.select_metadata_button)
+        metadata_layout.addWidget(self.select_resolve_metadata_button)
         metadata_layout.addWidget(self.start_metadata_button)
         metadata_layout.addStretch()
         
@@ -689,6 +694,99 @@ class MainWindow(QMainWindow):
             self.status_bar.showMessage("元数据更新出错")
         finally:
             self.start_metadata_button.setEnabled(True)
+    
+    def export_from_resolve(self):
+        """从DaVinci Resolve导出元数据CSV文件"""
+        try:
+            self.status_bar.showMessage("正在从DaVinci Resolve导出元数据...")
+            self.select_resolve_metadata_button.setEnabled(False)
+            
+            # 导入export_metadata模块
+            from export_metadata import MetadataExporter, ExportConfig
+            
+            # 创建配置
+            config = ExportConfig()
+            config.verbose = False  # 在GUI模式下不显示详细输出
+            
+            # 设置输出目录为桌面
+            config.set_output_directory("~/Desktop")
+            
+            # 创建导出器
+            exporter = MetadataExporter(config)
+            
+            # 连接到DaVinci Resolve
+            if not exporter.connect_to_resolve():
+                QMessageBox.critical(
+                    self, "连接失败", 
+                    "无法连接到DaVinci Resolve！\n\n"
+                    "请确保：\n"
+                    "1. DaVinci Resolve正在运行\n"
+                    "2. 已打开项目\n"
+                    "3. 启用了外部脚本访问\n"
+                    "4. 已正确设置环境变量"
+                )
+                return
+            
+            # 获取输出文件路径
+            output_path = config.get_output_path()
+            
+            # 执行导出
+            success = exporter.export_metadata(output_path)
+            
+            if success and os.path.exists(output_path):
+                # 导出成功，自动设置为元数据文件路径
+                self.metadata_path_input.setText(output_path)
+                self.start_metadata_button.setEnabled(True)
+                
+                # 显示成功消息
+                reply = QMessageBox.question(
+                    self, "导出成功", 
+                    f"元数据已成功从DaVinci Resolve导出！\n\n"
+                    f"导出文件: {os.path.basename(output_path)}\n"
+                    f"文件路径: {output_path}\n\n"
+                    f"该文件已自动设置为元数据输入文件。\n\n"
+                    f"是否要打开文件所在文件夹？",
+                    QMessageBox.Yes | QMessageBox.No
+                )
+                
+                if reply == QMessageBox.Yes:
+                    # 打开文件所在文件夹
+                    import subprocess
+                    import platform
+                    
+                    if platform.system() == "Darwin":  # macOS
+                        subprocess.run(["open", "-R", output_path])
+                    elif platform.system() == "Windows":
+                        subprocess.run(["explorer", "/select,", output_path])
+                    else:  # Linux
+                        subprocess.run(["xdg-open", os.path.dirname(output_path)])
+                
+                self.status_bar.showMessage(f"已从DaVinci Resolve导出元数据: {os.path.basename(output_path)}")
+            else:
+                QMessageBox.warning(
+                    self, "导出失败", 
+                    "从DaVinci Resolve导出元数据失败！\n\n"
+                    "可能的原因：\n"
+                    "- 项目中没有媒体文件\n"
+                    "- 权限不足\n"
+                    "- 导出路径无效\n\n"
+                    "请检查DaVinci Resolve项目并重试。"
+                )
+                self.status_bar.showMessage("DaVinci Resolve元数据导出失败")
+                
+        except ImportError as e:
+            QMessageBox.critical(
+                self, "导入错误", 
+                f"无法导入DaVinci Resolve相关模块：\n{str(e)}\n\n"
+                f"请确保export_metadata.py文件存在且DaVinciResolveScript模块可用。"
+            )
+        except Exception as e:
+            QMessageBox.critical(
+                self, "错误", 
+                f"导出过程中发生错误：\n{str(e)}"
+            )
+        finally:
+            self.select_resolve_metadata_button.setEnabled(True)
     
     def import_to_davinci_resolve(self):
         """导入元数据到DaVinci Resolve"""

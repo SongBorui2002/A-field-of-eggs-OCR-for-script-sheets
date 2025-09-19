@@ -210,6 +210,11 @@ class MetadataProcessor:
         if missing_columns:
             raise Exception(f"CSV缺少必要列: {missing_columns}")
         
+        # 确保Scene、Shot、Take列为字符串类型，避免pandas类型不兼容警告
+        for col in ['Scene', 'Shot', 'Take']:
+            if col in df.columns:
+                df[col] = df[col].astype('object')
+        
         # 统计信息
         matched_count = 0
         unmatched_records = []

@@ -11,11 +11,21 @@ import csv
 import pandas as pd
 from datetime import datetime
 
-# 设置编码
-if sys.version_info[0] == 3:
-    import io
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
-    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
+# 设置编码 - 仅在直接运行时设置，不在导入时设置
+def setup_encoding():
+    """设置标准输出编码"""
+    if sys.version_info[0] == 3:
+        import io
+        try:
+            if hasattr(sys.stdout, 'buffer') and not hasattr(sys.stdout, '_wrapped'):
+                sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', line_buffering=True)
+                sys.stdout._wrapped = True
+            if hasattr(sys.stderr, 'buffer') and not hasattr(sys.stderr, '_wrapped'):
+                sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', line_buffering=True)
+                sys.stderr._wrapped = True
+        except (AttributeError, ValueError):
+            # 如果重新包装失败，保持原始流不变
+            pass
 
 try:
     import DaVinciResolveScript as dvr_script
@@ -102,16 +112,76 @@ class ResolveMetadataImporter:
             print(f"❌ 连接DaVinci Resolve失败: {str(e)}")
             return False
     
+    def detect_csv_encoding(self, csv_path: str) -> str:
+        """检测CSV文件编码"""
+        try:
+            import chardet
+        except ImportError:
+            print("警告: 未安装chardet库，将尝试常见编码")
+            return None
+        
+        try:
+            with open(csv_path, 'rb') as f:
+                raw_data = f.read()
+                result = chardet.detect(raw_data)
+                encoding = result.get('encoding', 'utf-8')
+                confidence = result.get('confidence', 0)
+                
+                print(f"✓ 检测到编码: {encoding} (置信度: {confidence:.2f})")
+                
+            # 常见编码映射
+            encoding_map = {
+                'GB2312': 'gbk',
+                'GBK': 'gbk', 
+                'UTF-16': 'utf-16',
+                'UTF-8': 'utf-8',
+                'UTF-8-SIG': 'utf-8-sig'  # 带BOM的UTF-8
+            }
+            
+            return encoding_map.get(encoding, encoding)
+        except Exception as e:
+            print(f"编码检测失败: {e}")
+            return None
+    
     def read_csv_metadata(self, csv_file_path):
         """读取CSV文件中的元数据"""
         try:
             if not os.path.exists(csv_file_path):
                 raise Exception(f"CSV文件不存在: {csv_file_path}")
             
-            # 使用pandas读取CSV
-            df = pd.read_csv(csv_file_path, encoding='utf-8')
+            # 首先尝试检测编码
+            detected_encoding = self.detect_csv_encoding(csv_file_path)
+            
+            # 要尝试的编码列表
+            encodings_to_try = []
+            if detected_encoding:
+                encodings_to_try.append(detected_encoding)
+            
+            # 添加常见编码作为备选
+            common_encodings = ['utf-8-sig', 'utf-8', 'utf-16', 'gbk', 'cp1252', 'iso-8859-1']
+            for enc in common_encodings:
+                if enc not in encodings_to_try:
+                    encodings_to_try.append(enc)
+            
+            # 逐个尝试编码
+            df = None
+            successful_encoding = None
+            
+            for encoding in encodings_to_try:
+                try:
+                    print(f"尝试使用编码: {encoding}")
+                    df = pd.read_csv(csv_file_path, encoding=encoding)
+                    successful_encoding = encoding
+                    break
+                except Exception as e:
+                    print(f"编码 {encoding} 失败: {str(e)}")
+                    continue
+            
+            if df is None:
+                raise Exception("所有编码尝试都失败了")
             
             print(f"✓ 成功读取CSV文件: {csv_file_path}")
+            print(f"✓ 使用编码: {successful_encoding}")
             print(f"✓ 找到 {len(df)} 条元数据记录")
             print(f"✓ 列名: {list(df.columns)}")
             
@@ -250,6 +320,9 @@ class ResolveMetadataImporter:
     
 def main():
     """主函数"""
+    
+    # 只在直接运行时设置编码
+    setup_encoding()
     
     print("DaVinci Resolve元数据导入工具")
     print("=" * 50)

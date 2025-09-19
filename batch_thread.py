@@ -123,12 +123,20 @@ class BatchProcessThread(QThread):
             
             print(f"执行命令: {' '.join(cmd)}")
             
+            # 设置环境变量确保UTF-8编码
+            env = os.environ.copy()
+            env['PYTHONIOENCODING'] = 'utf-8'
+            env['LANG'] = 'zh_CN.UTF-8'
+            env['LC_ALL'] = 'zh_CN.UTF-8'
+            
             # 执行命令
             result = subprocess.run(
                 cmd,
                 capture_output=True,
                 text=True,
-                cwd=os.path.dirname(__file__)
+                cwd=os.path.dirname(__file__),
+                env=env,
+                encoding='utf-8'
             )
             
             print(f"命令返回码: {result.returncode}")
@@ -302,12 +310,20 @@ class BatchProcessThread(QThread):
             
             print(f"执行OCR命令: {' '.join(cmd)}")
             
+            # 设置环境变量确保UTF-8编码
+            env = os.environ.copy()
+            env['PYTHONIOENCODING'] = 'utf-8'
+            env['LANG'] = 'zh_CN.UTF-8'
+            env['LC_ALL'] = 'zh_CN.UTF-8'
+            
             # 执行命令
             result = subprocess.run(
                 cmd,
                 capture_output=True,
                 text=True,
-                cwd=os.path.dirname(__file__)
+                cwd=os.path.dirname(__file__),
+                env=env,
+                encoding='utf-8'
             )
             
             print(f"OCR返回码: {result.returncode}")
