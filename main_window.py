@@ -45,6 +45,7 @@ class MainWindow(QMainWindow):
         self.temp_dir = None      # 临时目录路径
         self.process_thread = None  # 后台处理线程
         self.current_pdf_path = ""  # 当前打开的PDF文件路径
+        self.updated_csv_path = ""  # 最新生成的更新后CSV文件路径
         self.setup_ui()
         self.connect_signals()
         
@@ -257,7 +258,7 @@ class MainWindow(QMainWindow):
         
         # 元数据处理区域 - 简化为一行
         metadata_layout = QHBoxLayout()
-        metadata_label = QLabel("元数据CSV:")
+        metadata_label = QLabel("元数据:")
         metadata_label.setMinimumWidth(80)
         
         self.metadata_path_input = QLineEdit()
@@ -278,6 +279,17 @@ class MainWindow(QMainWindow):
         metadata_layout.addStretch()
         
         bottom_layout.addLayout(metadata_layout)
+        #导入davinci resolve 按钮
+        self.import_resolve_button = QPushButton("导入Davinci Resolve元数据")
+        #davinci resolve改名按钮
+        self.rename_resolve_button = QPushButton("Davinci Resolve clip attribute 改名")
+        #resovle按钮位置在元数据CSV下方
+        metadata_layout.addWidget(self.import_resolve_button)
+        metadata_layout.addWidget(self.rename_resolve_button)
+        
+        # 连接按钮事件
+        self.import_resolve_button.clicked.connect(self.import_to_davinci_resolve)
+        self.rename_resolve_button.clicked.connect(self.rename_davinci_resolve_clips)
         
         main_layout.addWidget(bottom_frame)
         
@@ -658,6 +670,9 @@ class MainWindow(QMainWindow):
             
             # 显示结果
             if result.get('status') != 'error':
+                # 保存最新生成的CSV文件路径
+                self.updated_csv_path = result.get('output_path', '')
+                
                 message = f"元数据更新完成!\n\n"
                 message += f"✓ 成功更新: {result['matched_count']} 条记录\n"
                 message += f"⚠ 未找到匹配: {result['unmatched_count']} 条记录\n"
@@ -674,6 +689,92 @@ class MainWindow(QMainWindow):
             self.status_bar.showMessage("元数据更新出错")
         finally:
             self.start_metadata_button.setEnabled(True)
+    
+    def import_to_davinci_resolve(self):
+        """导入元数据到DaVinci Resolve"""
+        # 检查是否有生成的CSV文件
+        if not self.updated_csv_path or not os.path.exists(self.updated_csv_path):
+            QMessageBox.warning(
+                self, "警告", 
+                "没有找到更新后的CSV文件！\n\n"
+                "请先点击\"开始录入元数据\"按钮生成更新后的CSV文件，然后再导入到DaVinci Resolve。"
+            )
+            return
+        
+        # 确认导入
+        reply = QMessageBox.question(
+            self, "确认导入", 
+            f"将要导入以下CSV文件到DaVinci Resolve：\n\n"
+            f"{os.path.basename(self.updated_csv_path)}\n\n"
+            f"请确保DaVinci Resolve正在运行且已打开项目。\n\n"
+            f"是否继续？",
+            QMessageBox.Yes | QMessageBox.No
+        )
+        
+        if reply != QMessageBox.Yes:
+            return
+        
+        try:
+            self.status_bar.showMessage("正在导入元数据到DaVinci Resolve...")
+            self.import_resolve_button.setEnabled(False)
+            
+            # 导入import_metadata_to_resolve模块并调用功能
+            from import_metadata_to_resolve import ResolveMetadataImporter
+            
+            # 创建导入器实例
+            importer = ResolveMetadataImporter()
+            
+            # 连接到DaVinci Resolve
+            if not importer.connect_to_resolve():
+                QMessageBox.critical(
+                    self, "连接失败", 
+                    "无法连接到DaVinci Resolve！\n\n"
+                    "请确保：\n"
+                    "1. DaVinci Resolve正在运行\n"
+                    "2. 已正确设置环境变量\n"
+                    "3. 启用了外部脚本访问"
+                )
+                return
+            
+            # 执行导入
+            success = importer.import_metadata(self.updated_csv_path)
+            
+            if success:
+                QMessageBox.information(
+                    self, "导入完成", 
+                    f"元数据已成功导入到DaVinci Resolve！\n\n"
+                    f"导入文件: {os.path.basename(self.updated_csv_path)}"
+                )
+                self.status_bar.showMessage("DaVinci Resolve元数据导入完成")
+            else:
+                QMessageBox.warning(
+                    self, "导入失败", 
+                    "元数据导入到DaVinci Resolve失败！\n\n"
+                    "请检查控制台输出获取详细错误信息。"
+                )
+                self.status_bar.showMessage("DaVinci Resolve元数据导入失败")
+                
+        except ImportError as e:
+            QMessageBox.critical(
+                self, "导入错误", 
+                f"无法导入DaVinci Resolve相关模块：\n{str(e)}\n\n"
+                f"请确保DaVinciResolveScript模块可用。"
+            )
+        except Exception as e:
+            QMessageBox.critical(
+                self, "错误", 
+                f"导入过程中发生错误：\n{str(e)}"
+            )
+        finally:
+            self.import_resolve_button.setEnabled(True)
+    
+    def rename_davinci_resolve_clips(self):
+        """重命名DaVinci Resolve剪辑属性"""
+        # TODO: 实现剪辑重命名功能
+        QMessageBox.information(
+            self, "功能开发中", 
+            "DaVinci Resolve clip attribute 改名功能正在开发中..."
+        )
     
     def closeEvent(self, event):
         """窗口关闭事件"""

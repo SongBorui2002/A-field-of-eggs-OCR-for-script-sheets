@@ -74,6 +74,10 @@ class MetadataProcessor:
             df = pd.read_csv(csv_path, encoding=encoding)
             print(f"✓ 成功加载CSV文件，编码: {encoding}")
             print(f"✓ CSV尺寸: {df.shape[0]} 行 × {df.shape[1]} 列")
+            
+            # 自动填充Camera #列
+            self.populate_camera_numbers(df)
+            
             return df
         except Exception as e:
             # 尝试其他编码
@@ -83,11 +87,62 @@ class MetadataProcessor:
                         df = pd.read_csv(csv_path, encoding=fallback_encoding)
                         self.csv_encoding = fallback_encoding
                         print(f"✓ 使用备用编码加载CSV: {fallback_encoding}")
+                        
+                        # 自动填充Camera #列
+                        self.populate_camera_numbers(df)
+                        
                         return df
                     except:
                         continue
             
             raise Exception(f"无法读取CSV文件: {e}")
+    
+    def populate_camera_numbers(self, df: pd.DataFrame):
+        """从File Name列提取Camera #信息填充到所有行"""
+        print("开始处理Camera #信息...")
+        
+        if 'File Name' not in df.columns:
+            print("警告: CSV中没有'File Name'列，无法提取Camera #")
+            return
+        
+        if 'Camera #' not in df.columns:
+            df['Camera #'] = ''
+            print("✓ 创建了'Camera #'列")
+        
+        # 遍历所有行，为每一行填充Camera #
+        camera_count = 0
+        empty_filename_count = 0
+        
+        print(f"正在处理 {len(df)} 行数据...")
+        
+        for idx in df.index:
+            file_name = df.loc[idx, 'File Name']
+            
+            if pd.notna(file_name) and str(file_name).strip():
+                # 提取文件名的第一个字符作为Camera #
+                camera_letter = str(file_name).strip()[0].upper()
+                df.loc[idx, 'Camera #'] = camera_letter
+                camera_count += 1
+                
+                # 每100行显示一次进度
+                if camera_count % 100 == 0:
+                    print(f"已处理 {camera_count} 行...")
+            else:
+                # 文件名为空的情况
+                df.loc[idx, 'Camera #'] = ''
+                empty_filename_count += 1
+        
+        print(f"✓ Camera #处理完成:")
+        print(f"  - 成功填充: {camera_count} 行")
+        print(f"  - 文件名为空: {empty_filename_count} 行")
+        print(f"  - 总计: {len(df)} 行")
+        
+        # 显示Camera #统计
+        if camera_count > 0:
+            camera_stats = df['Camera #'].value_counts()
+            print(f"✓ Camera #统计分布: {dict(camera_stats)}")
+        
+        print("Camera #信息处理完成！\n")
     
     def extract_records_from_ocr(self, ocr_result: Dict[str, Any], card_number: str = "") -> List[Dict[str, str]]:
         """从OCR结果中提取记录"""
@@ -160,12 +215,12 @@ class MetadataProcessor:
         unmatched_records = []
         error_records = []
         
-        print(f"开始处理 {len(all_records)} 条记录...")
+        print(f"开始匹配 {len(all_records)} 条场记记录到CSV中...")
         
         # 遍历所有场记单数据
         for i, record in enumerate(all_records):
             try:
-                print(f"\n处理记录 {i+1}: {record}")
+                # print(f"\n处理记录 {i+1}: {record}")
                 
                 # 检查记录中的必要字段
                 if 'card_number' not in record or 'timecode' not in record:
@@ -176,8 +231,8 @@ class MetadataProcessor:
                 timecode = record['timecode']
                 reel_key = self.build_reel_key(card_number, timecode)
                 
-                print(f"卡号: {card_number}, 时码: {timecode}")
-                print(f"构建的Reel Key: {reel_key} (长度: {len(reel_key)})")
+                # print(f"卡号: {card_number}, 时码: {timecode}")
+                # print(f"构建的Reel Key: {reel_key} (长度: {len(reel_key)})")
                 
                 if len(reel_key) < 10:
                     error_msg = f"匹配键长度不足: {reel_key} (需要10个字符)"
@@ -192,14 +247,14 @@ class MetadataProcessor:
                 mask = df['Reel Name'].str[:10] == reel_key
                 matching_rows = df[mask]
                 
-                print(f"匹配结果: 找到 {len(matching_rows)} 行")
+                # print(f"匹配结果: 找到 {len(matching_rows)} 行")
                 
                 if len(matching_rows) > 0:
                     # 显示匹配的Reel Name
                     matched_reel_names = matching_rows['Reel Name'].tolist()
-                    print(f"匹配的Reel Names: {matched_reel_names}")
+                    # print(f"匹配的Reel Names: {matched_reel_names}")
                     
-                    # 找到匹配，更新数据
+                    # 找到匹配，更新场记信息字段
                     scene = record.get('scene', '')
                     shot = record.get('shot', '')
                     take = record.get('take', '')
@@ -209,7 +264,9 @@ class MetadataProcessor:
                     df.loc[mask, 'Take'] = take
                     matched_count += len(matching_rows)
                     
-                    print(f"✓ 匹配成功: {reel_key} -> Scene:{scene}, Shot:{shot}, Take:{take}")
+                    # 获取第一个匹配行的Camera #用于日志显示（Camera #已在加载时填充）
+                    # first_camera_letter = df.loc[matching_rows.index[0], 'Camera #'] if 'Camera #' in df.columns else ''
+                    # print(f"✓ 场记匹配成功: {reel_key} -> Scene:{scene}, Shot:{shot}, Take:{take} (Camera #:{first_camera_letter})")
                 else:
                     print(f"✗ 未找到匹配: {reel_key}")
                     
@@ -230,7 +287,7 @@ class MetadataProcessor:
                     'error': error_msg
                 })
         
-        print(f"\n匹配统计: 成功={matched_count}, 未匹配={len(unmatched_records)}, 错误={len(error_records)}")
+        print(f"\n场记匹配统计: 成功={matched_count}, 未匹配={len(unmatched_records)}, 错误={len(error_records)}")
         
         return {
             'matched_count': matched_count,
@@ -277,8 +334,8 @@ class MetadataProcessor:
                     'error_count': 1
                 }
             
-            # 1. 加载CSV
-            print("步骤1: 加载元数据CSV...")
+            # 步骤1: 加载CSV并处理Camera #
+            print("步骤1: 加载元数据CSV并处理Camera #信息...")
             df = self.load_metadata_csv(csv_path)
             
             # 调试：打印CSV列名
@@ -295,29 +352,34 @@ class MetadataProcessor:
                     'error_count': 1
                 }
             
-            # 2. 匹配和更新
-            print("步骤2: 匹配并更新数据...")
+            # 验证Camera #是否已正确填充
+            if 'Camera #' in df.columns:
+                filled_camera_count = df['Camera #'].notna().sum()
+                print(f"✓ Camera #列状态: {filled_camera_count}/{len(df)} 行已填充")
+            
+            # 步骤2: 匹配场记信息并更新
+            print("步骤2: 匹配场记信息并更新相关字段...")
             result = self.match_and_update(df, all_records)
             
-            # 3. 显示统计信息和详细错误
-            print(f"\n处理结果:")
-            print(f"✓ 成功匹配更新: {result['matched_count']} 条记录")
-            print(f"⚠ 未找到匹配: {result['unmatched_count']} 条记录") 
-            print(f"❌ 处理错误: {result['error_count']} 条记录")
+            # # 3. 显示统计信息和详细错误
+            # print(f"\n处理结果:")
+            # print(f"✓ 成功匹配更新: {result['matched_count']} 条记录")
+            # print(f"⚠ 未找到匹配: {result['unmatched_count']} 条记录") 
+            # print(f"❌ 处理错误: {result['error_count']} 条记录")
             
-            # 显示详细错误信息
-            if result.get('error_records'):
-                print("\n错误详情:")
-                for i, error_rec in enumerate(result['error_records'][:3]):  # 只显示前3个错误
-                    print(f"  错误{i+1}: {error_rec['error']}")
-                    print(f"  记录: {error_rec['record']}")
+            # # 显示详细错误信息
+            # if result.get('error_records'):
+            #     print("\n错误详情:")
+            #     for i, error_rec in enumerate(result['error_records'][:3]):  # 只显示前3个错误
+            #         print(f"  错误{i+1}: {error_rec['error']}")
+            #         print(f"  记录: {error_rec['record']}")
             
-            # 显示未匹配记录
-            if result.get('unmatched_records'):
-                print("\n未匹配记录:")
-                for i, unmatched in enumerate(result['unmatched_records'][:3]):  # 只显示前3个
-                    print(f"  未匹配{i+1}: Reel Key={unmatched['reel_key']}")
-                    print(f"  记录: {unmatched['record']}")
+            # # 显示未匹配记录
+            # if result.get('unmatched_records'):
+            #     print("\n未匹配记录:")
+            #     for i, unmatched in enumerate(result['unmatched_records'][:3]):  # 只显示前3个
+            #         print(f"  未匹配{i+1}: Reel Key={unmatched['reel_key']}")
+            #         print(f"  记录: {unmatched['record']}")
             
             # 4. 保存文件
             if result['matched_count'] > 0:

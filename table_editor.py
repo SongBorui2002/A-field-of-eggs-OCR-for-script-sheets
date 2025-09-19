@@ -62,6 +62,8 @@ class TableEditor(QWidget):
         self.delete_selected_button = QPushButton("删除选中")  # 改名以支持批量删除
         self.clear_table_button = QPushButton("清空表格")
         
+
+
         table_buttons_layout.addWidget(self.add_row_button)
         table_buttons_layout.addWidget(self.delete_selected_button)
         table_buttons_layout.addWidget(self.clear_table_button)

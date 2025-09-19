@@ -133,7 +133,7 @@ class ResolveMetadataImporter:
                 return clip
         return None
     
-    def import_metadata_from_csv(self, csv_file_path):
+    def import_metadata(self, csv_file_path):
         """从CSV文件导入元数据到剪辑"""
         
         # 读取CSV数据
@@ -199,6 +199,15 @@ class ResolveMetadataImporter:
                         else:
                             print(f"    ❌ Take设置失败: {take_value}")
                     
+                    # 设置Camera #
+                    if 'Camera #' in row and pd.notna(row['Camera #']) and str(row['Camera #']).strip():
+                        camera_value = str(row['Camera #']).strip()
+                        if matched_clip.SetMetadata('Camera #', camera_value):
+                            print(f"    ✓ Camera #: {camera_value}")
+                            metadata_updated = True
+                        else:
+                            print(f"    ❌ Camera #设置失败: {camera_value}")
+                    
                     if metadata_updated:
                         updated_count += 1
                         print(f"  ✓ 元数据更新成功")
@@ -212,7 +221,8 @@ class ResolveMetadataImporter:
                         'match_key': match_key,
                         'scene': row.get('Scene', ''),
                         'shot': row.get('Shot', ''),
-                        'take': row.get('Take', '')
+                        'take': row.get('Take', ''),
+                        'camera': row.get('Camera #', '')
                     })
                     
             except Exception as e:
@@ -232,48 +242,14 @@ class ResolveMetadataImporter:
         if unmatched_records:
             print(f"\n未匹配的记录:")
             for record in unmatched_records[:5]:  # 只显示前5个
-                print(f"  #{record['index']}: {record['match_key']} (Scene:{record['scene']}, Shot:{record['shot']}, Take:{record['take']})")
+                print(f"  #{record['index']}: {record['match_key']} (Scene:{record['scene']}, Shot:{record['shot']}, Take:{record['take']}, Camera #:{record['camera']})")
             if len(unmatched_records) > 5:
                 print(f"  ... 还有 {len(unmatched_records) - 5} 条未匹配记录")
         
         return updated_count > 0
     
-    def test_clip_properties(self):
-        """测试剪辑属性 - 用于调试"""
-        print("\n当前媒体池中的剪辑信息:")
-        print("-" * 50)
-        
-        for i, clip in enumerate(self.clips[:5]):  # 只显示前5个
-            print(f"\n剪辑 {i+1}:")
-            try:
-                print(f"  名称: {clip.GetName()}")
-                
-                # 安全地获取属性
-                reel_name = clip.GetProperty('Reel Name') if clip.GetProperty else 'N/A'
-                file_path = clip.GetProperty('File Path') if clip.GetProperty else 'N/A'
-                
-                print(f"  Reel Name: {reel_name}")
-                print(f"  文件路径: {file_path}")
-                
-                # 显示当前元数据
-                current_scene = clip.GetMetadata('Scene') if clip.GetMetadata else 'N/A'
-                current_shot = clip.GetMetadata('Shot') if clip.GetMetadata else 'N/A'
-                current_take = clip.GetMetadata('Take') if clip.GetMetadata else 'N/A'
-                
-                print(f"  当前Scene: {current_scene}")
-                print(f"  当前Shot: {current_shot}")
-                print(f"  当前Take: {current_take}")
-                
-            except Exception as e:
-                print(f"  ❌ 获取剪辑信息失败: {str(e)}")
-                continue
-        
-        if len(self.clips) > 5:
-            print(f"\n... 还有 {len(self.clips) - 5} 个剪辑")
-
-
 def main():
-    """主函数 - 测试功能"""
+    """主函数"""
     
     print("DaVinci Resolve元数据导入工具")
     print("=" * 50)
@@ -285,11 +261,6 @@ def main():
     if not importer.connect_to_resolve():
         return
     
-    # 测试剪辑属性（可选）
-    print("\n是否查看当前剪辑信息？(y/n): ", end="")
-    if input().lower() == 'y':
-        importer.test_clip_properties()
-    
     # 获取CSV文件路径
     print("\n请输入CSV文件路径: ", end="")
     csv_file_path = input().strip().strip('"\'')
@@ -298,9 +269,9 @@ def main():
         print("❌ 未提供CSV文件路径")
         return
     
-    # 执行导入（只使用文件名匹配）
-    print("\n使用文件名匹配方式导入元数据...")
-    success = importer.import_metadata_from_csv(csv_file_path)
+    # 执行导入
+    print("\n开始导入元数据...")
+    success = importer.import_metadata(csv_file_path)
     
     if success:
         print("\n🎉 元数据导入完成！")
