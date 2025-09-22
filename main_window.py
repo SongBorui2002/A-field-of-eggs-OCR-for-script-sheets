@@ -39,6 +39,7 @@ class MainWindow(QMainWindow):
         
         self.current_images = []
         self.current_index = 0
+        self.processing_image_index = -1  # 当前正在处理的图像索引（用于单张处理）
         self.ocr_results = {}
         self.card_numbers = {}    # 存储每张图像对应的卡号 {index: card_number}
         self.table_data = {}      # 存储每张图像对应的表格数据 {index: table_data}
@@ -509,6 +510,9 @@ class MainWindow(QMainWindow):
         self.start_button.setEnabled(True)
         self.stop_button.setEnabled(False)
         
+        # 刷新当前页面显示，确保显示最新的处理结果
+        self.show_current_image()
+        
         # 显示结果
         if success:
             QMessageBox.information(self, "完成", message)
@@ -540,8 +544,11 @@ class MainWindow(QMainWindow):
             QMessageBox.information(self, "提示", "正在处理中，请稍候...")
             return
         
+        # 锁定当前处理的图像索引，防止用户切换页面时索引混乱
+        self.processing_image_index = self.current_index
+        
         # 获取当前图像路径
-        current_image_path = self.current_images[self.current_index]
+        current_image_path = self.current_images[self.processing_image_index]
         
         # 解析场号
         scene_input = self.scene_input.text().strip()
@@ -574,19 +581,22 @@ class MainWindow(QMainWindow):
     
     def handle_single_image_processed(self, index, result):
         """处理单张图像处理结果"""
-        # index 是在传入的图像列表中的索引（应该是0），需要映射到当前图像索引
-        self.ocr_results[self.current_index] = result
+        # 使用开始处理时锁定的索引，而不是当前可能已经改变的索引
+        # 这样与批量处理逻辑保持一致，避免用户切换页面时的索引混乱
+        target_index = self.processing_image_index
+        self.ocr_results[target_index] = result
         
-        # OCR成功后，立即转换为table_data格式并更新显示
+        # OCR成功后，立即转换为table_data格式
         if result.get('status') == 'success':
             from metadata_processor import MetadataProcessor
             processor = MetadataProcessor()
-            card_number = self.card_numbers.get(self.current_index, "")
+            card_number = self.card_numbers.get(target_index, "")
             records = processor.extract_records_from_ocr(result, card_number)
-            self.table_data[self.current_index] = records
+            self.table_data[target_index] = records
             
-            # 更新表格显示
-            self.load_table_data_from_records(records)
+            # 只有当处理的图像正好是当前显示的图像时，才更新表格显示
+            if target_index == self.current_index:
+                self.load_table_data_from_records(records)
     
     def handle_single_process_finished(self, success, message):
         """处理单张图像处理完成"""
