@@ -203,7 +203,7 @@ class MetadataProcessor:
         return records
     
     def match_and_update(self, df: pd.DataFrame, all_records: List[Dict[str, str]]) -> Dict[str, Any]:
-        """匹配并更新元数据"""
+        """匹配並更新元数据"""
         # 检查必要的列是否存在
         required_columns = ['Reel Name', 'Scene', 'Shot', 'Take']
         missing_columns = [col for col in required_columns if col not in df.columns]
@@ -214,6 +214,16 @@ class MetadataProcessor:
         for col in ['Scene', 'Shot', 'Take']:
             if col in df.columns:
                 df[col] = df[col].astype('object')
+        
+        # 确保Comments列存在
+        if 'Comments' not in df.columns:
+            df['Comments'] = ''
+            print("✓ 创建了'Comments'列")
+        
+        # 确保Good Take列存在
+        if 'Good Take' not in df.columns:
+            df['Good Take'] = ''
+            print("✓ 创建了'Good Take'列")
         
         # 统计信息
         matched_count = 0
@@ -264,14 +274,34 @@ class MetadataProcessor:
                     shot = record.get('shot', '')
                     take = record.get('take', '')
                     
+                    # 處理視效和成績
+                    vfx = record.get('vfx', '').strip()
+                    result = record.get('result', '').strip()
+                    
+                    # 构建Comments内容：视效_成绩
+                    comments_parts = []
+                    if vfx:
+                        comments_parts.append(vfx)
+                    if result:
+                        comments_parts.append(result)
+                    
+                    comments_content = '_'.join(comments_parts) if comments_parts else ''
+                    
+                    # 處理Good Take欄位：如果成績為OK，則設為1
+                    good_take_value = ''
+                    if result.upper() == 'OK':
+                        good_take_value = '1'
+                    
                     df.loc[mask, 'Scene'] = scene
                     df.loc[mask, 'Shot'] = shot  
                     df.loc[mask, 'Take'] = take
+                    df.loc[mask, 'Comments'] = comments_content
+                    df.loc[mask, 'Good Take'] = good_take_value
                     matched_count += len(matching_rows)
                     
                     # 获取第一个匹配行的Camera #用于日志显示（Camera #已在加载时填充）
                     # first_camera_letter = df.loc[matching_rows.index[0], 'Camera #'] if 'Camera #' in df.columns else ''
-                    # print(f"✓ 场记匹配成功: {reel_key} -> Scene:{scene}, Shot:{shot}, Take:{take} (Camera #:{first_camera_letter})")
+                    # print(f"✓ 场记匹配成功: {reel_key} -> Scene:{scene}, Shot:{shot}, Take:{take}, Comments:{comments_content} (Camera #:{first_camera_letter})")
                 else:
                     print(f"✗ 未找到匹配: {reel_key}")
                     

@@ -278,6 +278,24 @@ class ResolveMetadataImporter:
                         else:
                             print(f"    ❌ Camera #设置失败: {camera_value}")
                     
+                    # 设置Comments（视效_成绩）
+                    if 'Comments' in row and pd.notna(row['Comments']) and str(row['Comments']).strip():
+                        comments_value = str(row['Comments']).strip()
+                        if matched_clip.SetMetadata('Comments', comments_value):
+                            print(f"    ✓ Comments: {comments_value}")
+                            metadata_updated = True
+                        else:
+                            print(f"    ❌ Comments设置失败: {comments_value}")
+                    
+                    # 设置Good Take（成绩为OK时为1）
+                    if 'Good Take' in row and pd.notna(row['Good Take']) and str(row['Good Take']).strip():
+                        good_take_value = str(row['Good Take']).strip()
+                        if matched_clip.SetMetadata('Good Take', good_take_value):
+                            print(f"    ✓ Good Take: {good_take_value}")
+                            metadata_updated = True
+                        else:
+                            print(f"    ❌ Good Take设置失败: {good_take_value}")
+                    
                     if metadata_updated:
                         updated_count += 1
                         print(f"  ✓ 元数据更新成功")
