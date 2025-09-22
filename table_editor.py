@@ -462,11 +462,16 @@ class TableEditor(QWidget):
             if all(m[0] == prefix and m[2] == suffix for m in matches):
                 numbers = [m[1] for m in matches]
                 if all(numbers[i] - numbers[i-1] == 1 for i in range(1, len(numbers))):
+                    # 獲取原始數字字符串格式
+                    original_match = pattern.match(data[0].strip())
+                    original_num_str = original_match.group(2) if original_match else str(start_num)
+                    
                     return {
                         'type': 'numbered',
                         'prefix': prefix,
                         'suffix': suffix,
                         'start': start_num,
+                        'original_num_str': original_num_str,
                         'current_index': len(matches)
                     }
                     
@@ -526,9 +531,18 @@ class TableEditor(QWidget):
         elif pattern['type'] == 'numbered':
             # 数字后缀序列
             start_num = pattern['start'] + pattern['current_index']
+            # 檢測原始數字的格式（是否需要補零）
+            original_num_str = pattern.get('original_num_str', str(pattern['start']))
+            num_width = len(original_num_str)
+            
             for i in range(count):
                 num = start_num + i
-                fill_data.append(f"{pattern['prefix']}{num}{pattern['suffix']}")
+                # 如果原始數字有固定寬度（如001），則保持該寬度格式
+                if num_width > 1 and original_num_str.startswith('0'):
+                    num_str = str(num).zfill(num_width)
+                else:
+                    num_str = str(num)
+                fill_data.append(f"{pattern['prefix']}{num_str}{pattern['suffix']}")
                 
         return fill_data
         
