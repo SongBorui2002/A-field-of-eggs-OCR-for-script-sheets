@@ -151,7 +151,8 @@ class MetadataProcessor:
         if not ocr_result or ocr_result.get('status') != 'success':
             return records
         
-        raw_result = ocr_result.get('raw_result', '{}')
+        # 支持两种键名：'result' 和 'raw_result'
+        raw_result = ocr_result.get('result') or ocr_result.get('raw_result', '{}')
         try:
             # 解析DeepSeek返回的JSON
             if isinstance(raw_result, str):
