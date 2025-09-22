@@ -352,6 +352,7 @@ class MainWindow(QMainWindow):
                 self.current_index = 0
                 self.ocr_results = {}
                 self.card_numbers = {}  # 清空卡号数据
+                self.table_data = {}  # 清空表格数据
                 
                 # 显示第一张图像
                 self.show_current_image()
@@ -396,15 +397,34 @@ class MainWindow(QMainWindow):
         card_number = self.card_numbers.get(self.current_index, "")
         self.table_editor.set_card_number(card_number)
         
-        # 优先加载保存的表格数据，如果没有则加载OCR结果
+        # 先清空表格，确保干净状态
+        self.table_editor.clear_table()
+        
+        # 优先加载table_data（统一的数据格式），如果没有则回退到OCR原始结果
         if self.current_index in self.table_data and self.table_data[self.current_index]:
-            # 加载保存的表格数据
+            print(f"🔍 加载table_data，记录数量: {len(self.table_data[self.current_index])}")
             self.load_table_data_from_records(self.table_data[self.current_index])
         elif self.current_index in self.ocr_results:
-            # 加载OCR结果
+            # 临时回退机制：如果table_data为空，使用原来的方式加载OCR结果
             result = self.ocr_results[self.current_index]
             if result.get('status') == 'success':
-                self.table_editor.load_data(result.get('result', {}))
+                print(f"🔍 回退到OCR原始结果，result keys: {result.keys()}")
+                if 'result' in result:
+                    self.table_editor.load_data(result.get('result', {}))
+                elif 'raw_result' in result:
+                    # 尝试解析raw_result
+                    try:
+                        import json
+                        raw_result = result.get('raw_result', '{}')
+                        if isinstance(raw_result, str):
+                            data = json.loads(raw_result)
+                        else:
+                            data = raw_result
+                        print(f"🔍 解析raw_result成功，数据keys: {data.keys() if isinstance(data, dict) else 'not dict'}")
+                        self.table_editor.load_data(data)
+                    except Exception as e:
+                        print(f"🔍 解析raw_result失败: {e}")
+        # 注意：如果都没有，表格保持清空状态
                 
     def load_table_data_from_records(self, records):
         """从记录列表加载表格数据"""
@@ -491,9 +511,22 @@ class MainWindow(QMainWindow):
         """处理单个图像的结果"""
         self.ocr_results[index] = result
         
-        # 如果是当前显示的图像，更新表格
-        if index == self.current_index and result.get('status') == 'success':
-            self.table_editor.load_data(result.get('result', {}))
+        # OCR成功后，立即转换为table_data格式
+        if result.get('status') == 'success':
+            from metadata_processor import MetadataProcessor
+            processor = MetadataProcessor()
+            card_number = self.card_numbers.get(index, "")
+            records = processor.extract_records_from_ocr(result, card_number)
+            print(f"🔍 Debug: OCR转换结果 index={index}, records数量={len(records)}")
+            print(f"🔍 Debug: OCR原始result keys: {result.keys()}")
+            if records:
+                print(f"🔍 Debug: 第一条记录: {records[0]}")
+            self.table_data[index] = records
+        
+        # 取消异步UI更新 - 让show_current_image()统一管理UI更新
+        # 这样避免了异步响应与同步切换的竞争条件
+
+        
             
     def handle_process_finished(self, success, message):
         """处理完成"""
@@ -569,9 +602,20 @@ class MainWindow(QMainWindow):
         # index 是在传入的图像列表中的索引（应该是0），需要映射到当前图像索引
         self.ocr_results[self.current_index] = result
         
-        # 更新表格显示
+        # OCR成功后，立即转换为table_data格式并更新显示
         if result.get('status') == 'success':
-            self.table_editor.load_data(result.get('result', {}))
+            from metadata_processor import MetadataProcessor
+            processor = MetadataProcessor()
+            card_number = self.card_numbers.get(self.current_index, "")
+            records = processor.extract_records_from_ocr(result, card_number)
+            print(f"🔍 Debug: 单图OCR转换结果 index={self.current_index}, records数量={len(records)}")
+            print(f"🔍 Debug: OCR原始result keys: {result.keys()}")
+            if records:
+                print(f"🔍 Debug: 第一条记录: {records[0]}")
+            self.table_data[self.current_index] = records
+            
+            # 更新表格显示
+            self.load_table_data_from_records(records)
     
     def handle_single_process_finished(self, success, message):
         """处理单张图像处理完成"""
@@ -600,25 +644,15 @@ class MainWindow(QMainWindow):
     
     def collect_all_table_data_for_metadata(self):
         """收集所有表格数据用于元数据更新"""
-        from metadata_processor import MetadataProcessor
-        
         all_records = []
-        processor = MetadataProcessor()
         
         # 先保存当前表格数据
         self.save_current_table_data()
         
-        # 遍历所有图像，收集表格数据
+        # 遍历所有图像，收集表格数据（现在只需要从table_data收集）
         for index in range(len(self.current_images)):
-            card_number = self.card_numbers.get(index, "")
-            
-            # 优先使用保存的表格数据
             if index in self.table_data and self.table_data[index]:
                 all_records.extend(self.table_data[index])
-            # 如果没有保存的表格数据，尝试从OCR结果提取
-            elif index in self.ocr_results and self.ocr_results[index].get('status') == 'success':
-                records = processor.extract_records_from_ocr(self.ocr_results[index], card_number)
-                all_records.extend(records)
         
         print(f"收集到的总记录数: {len(all_records)}")
         return all_records
