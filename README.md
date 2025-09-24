@@ -69,17 +69,6 @@ pdf_to_png → image_process → ocr_pipeline → deepseek_processor → table_e
    - 创建对应文件夹结构
    - 移动剪辑到相应场景文件夹
 
-## 📋 系统要求
-
-### 硬件要求
-- **推荐**: Apple M3 Max或同等性能处理器
-- **内存**: 16GB以上
-- **存储**: 至少2GB可用空间
-
-### 软件要求
-- **操作系统**: macOS 10.15+ / Windows 10+ / Linux
-- **Python**: 3.8+
-- **DaVinci Resolve**: 18.0+ (用于元数据导入)
 
 ### 依赖库
 ```bash
