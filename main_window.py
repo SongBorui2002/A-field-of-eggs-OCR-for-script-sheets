@@ -223,10 +223,48 @@ class MainWindow(QMainWindow):
         """创建底部操作面板"""
         bottom_frame = QFrame()
         bottom_frame.setFrameStyle(QFrame.Box)
-        bottom_frame.setMaximumHeight(150)  # 限制底部面板最大高度
+        bottom_frame.setMaximumHeight(220)  # 增加高度以容纳API密钥输入框
         bottom_layout = QVBoxLayout(bottom_frame)
         bottom_layout.setContentsMargins(10, 5, 10, 5)  # 减少垂直边距
         bottom_layout.setSpacing(5)  # 减少控件间距
+        
+        # API密钥输入区域
+        api_keys_layout = QHBoxLayout()
+        
+        # DeepSeek API Key
+        deepseek_label = QLabel("DeepSeek API:")
+        deepseek_label.setMinimumWidth(100)
+        self.deepseek_input = QLineEdit()
+        self.deepseek_input.setPlaceholderText("输入DeepSeek API Key")
+        self.deepseek_input.setText(self.config.deepseek_api_key)
+        self.deepseek_input.textChanged.connect(self.on_deepseek_api_changed)
+        
+        # 腾讯云 Secret ID
+        tencent_id_label = QLabel("腾讯云ID:")
+        tencent_id_label.setMinimumWidth(80)
+        self.tencent_id_input = QLineEdit()
+        self.tencent_id_input.setPlaceholderText("输入腾讯云Secret ID")
+        self.tencent_id_input.setText(self.config.tencent_secret_id)
+        self.tencent_id_input.textChanged.connect(self.on_tencent_id_changed)
+        
+        # 腾讯云 Secret Key
+        tencent_key_label = QLabel("腾讯云Key:")
+        tencent_key_label.setMinimumWidth(90)
+        self.tencent_key_input = QLineEdit()
+        self.tencent_key_input.setPlaceholderText("输入腾讯云Secret Key")
+        self.tencent_key_input.setText(self.config.tencent_secret_key)
+        self.tencent_key_input.textChanged.connect(self.on_tencent_key_changed)
+        
+        api_keys_layout.addWidget(deepseek_label)
+        api_keys_layout.addWidget(self.deepseek_input, 1)
+        api_keys_layout.addSpacing(10)
+        api_keys_layout.addWidget(tencent_id_label)
+        api_keys_layout.addWidget(self.tencent_id_input, 1)
+        api_keys_layout.addSpacing(10)
+        api_keys_layout.addWidget(tencent_key_label)
+        api_keys_layout.addWidget(self.tencent_key_input, 1)
+        
+        bottom_layout.addLayout(api_keys_layout)
         
         # 场号输入和OCR处理按钮放在同一行
         top_controls_layout = QHBoxLayout()
@@ -316,6 +354,29 @@ class MainWindow(QMainWindow):
         
         # 连接卡号输入框的信号
         self.table_editor.card_input.textChanged.connect(self.on_card_number_changed)
+        
+    def on_deepseek_api_changed(self, text):
+        """DeepSeek API密钥变更处理"""
+        self.config.deepseek_api_key = text.strip()
+        self.save_config()
+        
+    def on_tencent_id_changed(self, text):
+        """腾讯云Secret ID变更处理"""
+        self.config.tencent_secret_id = text.strip()
+        self.save_config()
+        
+    def on_tencent_key_changed(self, text):
+        """腾讯云Secret Key变更处理"""
+        self.config.tencent_secret_key = text.strip()
+        self.save_config()
+        
+    def save_config(self):
+        """保存配置到文件"""
+        try:
+            config_path = self.config.get_config_path()
+            self.config.save_to_file(config_path)
+        except Exception as e:
+            print(f"保存配置失败: {e}")
         
     def open_pdf(self):
         """打开PDF文件"""

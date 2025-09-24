@@ -11,11 +11,11 @@ class AppConfig:
     
     def __init__(self):
         # API配置
-        self.deepseek_api_key = "sk-f71759d6e28b4985818ea73abcc4eebb"
+        self.deepseek_api_key = ""
         
         # 腾讯云API配置
-        self.tencent_secret_id = "AKIDWs21iNq7A1g7Vpy8B2iBXktvpkX8bv2w"
-        self.tencent_secret_key = "qVxCE3f4GH6h5GdwFlN1a2LWWJtGPL3a"
+        self.tencent_secret_id = ""
+        self.tencent_secret_key = ""
         
         # 图像处理配置
         self.lut_path = "/Users/sbr/Desktop/OCR.cube"
