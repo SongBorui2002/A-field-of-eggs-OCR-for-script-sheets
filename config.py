@@ -18,7 +18,7 @@ class AppConfig:
         self.tencent_secret_key = ""
         
         # 图像处理配置
-        self.lut_path = "/Users/sbr/Desktop/OCR.cube"
+        self.lut_path = "/Users/sbr/Desktop/YYHG_ocr/OCR.cube"
         
         # 裁剪配置
         self.crop_config = {
