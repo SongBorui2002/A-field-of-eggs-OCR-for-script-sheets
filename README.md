@@ -19,9 +19,9 @@
 ## 🏗️ 系统架构
 
 ```
-PDF文件 → 图像处理 → OCR识别 → AI处理 → 表格编辑 → 元数据更新 → DaVinci导入
+PDF文件 → 图像处理 → OCR识别 → ds数据二次处理 → 表格编辑 → 元数据更新 → DaVinci导入 → 分场文件夹
    ↓         ↓         ↓        ↓        ↓         ↓          ↓
-pdf_to_png → image_process → ocr_pipeline → deepseek_processor → table_editor → metadata_processor → import_metadata_to_resolve
+pdf_to_png → image_process → ocr_pipeline → deepseek_processor → table_editor → metadata_processor → import_metadata_to_resolve → organize_by_scene
 ```
 
 ### 处理流程详解
@@ -266,16 +266,6 @@ python organize_by_scene.py
 - 自动资源管理和负载均衡
 - 进度显示和错误处理
 
-### 场号管理
-- 支持自定义场号列表
-- 智能场号继承和修复
-- 时码格式标准化
-
-### 元数据模板
-- 支持DaVinci Resolve模板字符串
-- 自动生成Clip Name
-- 自定义元数据字段
-
 ## 🐛 故障排除
 
 ### 常见问题
@@ -301,7 +291,7 @@ python organize_by_scene.py
 - 查看API配额限制
 
 ### 日志文件
-- 系统日志: `deepseek_api.log`
+- deepseek响应日志: `deepseek_api.log`
 - 错误信息会显示在控制台和状态栏
 
 ## 📝 开发说明
@@ -332,19 +322,11 @@ YYHG_ocr/
 - 扩展元数据字段支持
 - 集成其他后期制作软件
 
-## 📄 许可证
-
-本项目采用MIT许可证，详见LICENSE文件。
 
 ## 🤝 贡献指南
 
 欢迎提交Issue和Pull Request来改进项目。
 
-## 📞 技术支持
-
-如有问题，请通过以下方式联系：
-- 提交GitHub Issue
-- 发送邮件至技术支持邮箱
 
 ---
 
