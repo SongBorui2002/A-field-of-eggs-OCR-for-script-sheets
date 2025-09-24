@@ -214,6 +214,7 @@ class ResolveMetadataImporter:
         # 统计信息
         matched_count = 0
         updated_count = 0
+        skipped_count = 0  # 跳过的非视频剪辑计数
         error_count = 0
         unmatched_records = []
         
@@ -238,6 +239,21 @@ class ResolveMetadataImporter:
                 if matched_clip:
                     matched_count += 1
                     print(f"  ✓ 找到匹配剪辑: {matched_clip.GetName()}")
+                    
+                    # 检查剪辑类型，只处理Video和Video+Audio类型
+                    try:
+                        clip_type = matched_clip.GetClipProperty("Type")
+                        print(f"    剪辑类型: {clip_type}")
+                        
+                        if clip_type not in ["Video", "Video+Audio"]:
+                            print(f"    ⚠ 跳过非视频剪辑 (类型: {clip_type})")
+                            skipped_count += 1
+                            continue
+                            
+                    except Exception as e:
+                        print(f"    ⚠ 无法获取剪辑类型，跳过: {str(e)}")
+                        skipped_count += 1
+                        continue
                     
                     # 更新元数据
                     metadata_updated = False
@@ -295,7 +311,37 @@ class ResolveMetadataImporter:
                             metadata_updated = True
                         else:
                             print(f"    ❌ Good Take设置失败: {good_take_value}")
-                    
+
+                    # 设置Clip Name属性（使用模板字符串格式）
+                    # 使用DaVinci Resolve模板字符串格式进行统一命名
+                    template_name = "%{Scene}_%{Shot}_%{Take}_%{Cam #}_%{Comments}"
+                    try:
+                        # 先设置元数据，再设置Clip Name模板
+                        metadata_set_result = matched_clip.SetMetadata('Name', template_name)
+                        clip_name_result = matched_clip.SetClipProperty('Clip Name', template_name)
+                        
+                        # 验证Clip Name是否被正确解析（不管SetClipProperty返回值如何）
+                        verify_clip_name = matched_clip.GetClipProperty('Clip Name')
+                        if verify_clip_name and verify_clip_name != template_name:
+                            print(f"    ✓ Clip Name模板设置成功并已解析: {verify_clip_name}")
+                            metadata_updated = True
+                        elif verify_clip_name == template_name:
+                            print(f"    ✓ Clip Name模板设置成功（待解析）: {template_name}")
+                            metadata_updated = True
+                        else:
+                            # Clip Name设置失败，尝试只设置元数据作为备选
+                            if metadata_set_result:
+                                verify_name = matched_clip.GetMetadata('Name')
+                                if verify_name:
+                                    print(f"    ✓ Name元数据设置成功: {template_name}")
+                                    metadata_updated = True
+                                else:
+                                    print(f"    ❌ Name元数据设置失败，验证失败")
+                            else:
+                                print(f"    ❌ 所有命名方法都失败: {template_name}")
+                    except Exception as e:
+                        print(f"    ❌ 命名设置异常: {str(e)}")
+                            
                     if metadata_updated:
                         updated_count += 1
                         print(f"  ✓ 元数据更新成功")

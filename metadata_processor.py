@@ -211,6 +211,17 @@ class MetadataProcessor:
         if missing_columns:
             raise Exception(f"CSV缺少必要列: {missing_columns}")
         
+        # 确保Scene、Shot、Take列存在
+        if 'Scene' not in df.columns:
+            df['Scene'] = ''
+            print("✓ 创建了'Scene'列")
+        if 'Shot' not in df.columns:
+            df['Shot'] = ''
+            print("✓ 创建了'Shot'列")
+        if 'Take' not in df.columns:
+            df['Take'] = ''
+            print("✓ 创建了'Take'列")
+        
         # 确保Scene、Shot、Take列为字符串类型，避免pandas类型不兼容警告
         for col in ['Scene', 'Shot', 'Take']:
             if col in df.columns:
@@ -225,6 +236,15 @@ class MetadataProcessor:
         if 'Good Take' not in df.columns:
             df['Good Take'] = ''
             print("✓ 创建了'Good Take'列")
+        
+        # 确保EDL Clip Name列存在并设置格式
+        if 'EDL Clip Name' not in df.columns:
+            df['EDL Clip Name'] = ''
+            print("✓ 创建了'EDL Clip Name'列")
+        
+        # 为所有行设置EDL Clip Name格式
+        df['EDL Clip Name'] = '%{Scene}_%{Shot}_%{Take}_%{Cam #}_%{Comments}'
+        print("✓ 设置了'EDL Clip Name'格式")
         
         # 统计信息
         matched_count = 0
