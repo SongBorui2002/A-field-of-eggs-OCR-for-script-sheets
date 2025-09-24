@@ -287,15 +287,15 @@ class MainWindow(QMainWindow):
         bottom_layout.addLayout(metadata_layout)
         #导入davinci resolve 按钮
         self.import_resolve_button = QPushButton("导入Davinci Resolve元数据")
-        #davinci resolve改名按钮
-        self.rename_resolve_button = QPushButton("Davinci Resolve clip attribute 改名")
-        #resovle按钮位置在元数据CSV下方
+        #davinci resolve分场文件夹按钮
+        self.organize_scene_button = QPushButton("根据Scene分场文件夹")
+        #resolve按钮位置在元数据CSV下方
         metadata_layout.addWidget(self.import_resolve_button)
-        metadata_layout.addWidget(self.rename_resolve_button)
+        metadata_layout.addWidget(self.organize_scene_button)
         
         # 连接按钮事件
         self.import_resolve_button.clicked.connect(self.import_to_davinci_resolve)
-        self.rename_resolve_button.clicked.connect(self.rename_davinci_resolve_clips)
+        self.organize_scene_button.clicked.connect(self.organize_clips_by_scene)
         
         main_layout.addWidget(bottom_frame)
         
@@ -881,13 +881,89 @@ class MainWindow(QMainWindow):
         finally:
             self.import_resolve_button.setEnabled(True)
     
-    def rename_davinci_resolve_clips(self):
-        """重命名DaVinci Resolve剪辑属性"""
-        # TODO: 实现剪辑重命名功能
-        QMessageBox.information(
-            self, "功能开发中", 
-            "DaVinci Resolve clip attribute 改名功能正在开发中..."
+    def organize_clips_by_scene(self):
+        """根据Scene元数据组织剪辑到文件夹"""
+        # 确认操作
+        reply = QMessageBox.question(
+            self, "确认操作", 
+            "将要根据Scene元数据自动创建文件夹并组织剪辑：\n\n"
+            "• 只处理Video和Video+Audio类型的剪辑\n"
+            "• 跳过Scene为空的剪辑\n"
+            "• 在Media Pool根目录创建Scene文件夹\n\n"
+            "请确保DaVinci Resolve正在运行且已打开项目。\n\n"
+            "是否继续？",
+            QMessageBox.Yes | QMessageBox.No
         )
+        
+        if reply != QMessageBox.Yes:
+            return
+        
+        try:
+            self.status_bar.showMessage("正在组织剪辑到Scene文件夹...")
+            self.organize_scene_button.setEnabled(False)
+            
+            # 导入organize_by_scene脚本的功能
+            import subprocess
+            import sys
+            
+            # 获取organize_by_scene.py的路径
+            script_path = os.path.join(os.path.dirname(__file__), "organize_by_scene.py")
+            
+            if not os.path.exists(script_path):
+                QMessageBox.critical(
+                    self, "文件缺失", 
+                    f"找不到organize_by_scene.py文件！\n\n"
+                    f"预期路径: {script_path}\n\n"
+                    f"请确保文件存在。"
+                )
+                return
+            
+            # 运行脚本
+            result = subprocess.run([sys.executable, script_path], 
+                                  capture_output=True, text=True)
+            
+            if result.returncode == 0:
+                # 解析输出结果
+                output_lines = result.stdout.strip().split('\n')
+                
+                # 查找统计信息
+                stats_info = ""
+                for line in output_lines:
+                    if "成功移动剪辑:" in line or "跳过非视频剪辑:" in line or \
+                       "跳过Scene为空:" in line or "创建Scene文件夹数:" in line:
+                        stats_info += line + "\n"
+                
+                QMessageBox.information(
+                    self, "组织完成", 
+                    f"剪辑已成功按Scene组织到文件夹！\n\n"
+                    f"处理结果:\n{stats_info}\n"
+                    f"请在DaVinci Resolve的Media Pool中查看新创建的Scene文件夹。"
+                )
+                self.status_bar.showMessage("Scene文件夹组织完成")
+            else:
+                # 显示错误信息
+                error_msg = result.stderr if result.stderr else "未知错误"
+                QMessageBox.warning(
+                    self, "组织失败", 
+                    f"Scene文件夹组织失败！\n\n"
+                    f"错误信息:\n{error_msg}\n\n"
+                    f"请检查DaVinci Resolve是否正在运行且已打开项目。"
+                )
+                self.status_bar.showMessage("Scene文件夹组织失败")
+                
+        except FileNotFoundError:
+            QMessageBox.critical(
+                self, "Python错误", 
+                "无法找到Python解释器！\n\n"
+                "请检查Python环境配置。"
+            )
+        except Exception as e:
+            QMessageBox.critical(
+                self, "错误", 
+                f"组织过程中发生错误：\n{str(e)}"
+            )
+        finally:
+            self.organize_scene_button.setEnabled(True)
     
     def closeEvent(self, event):
         """窗口关闭事件"""
